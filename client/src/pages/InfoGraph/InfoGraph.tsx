@@ -1,7 +1,8 @@
 import { HsafaChat, HsafaProvider, ContentContainer, useHsafa } from "@hsafa/ui-sdk";
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPresentationTools, EMPTY_PRESENTATION, type PresentationState } from '../../tools/presentationTools';
 import { PresentationDisplay } from '../../components/PresentationDisplay';
+import { savePresentationVersion, loadLatestPresentation } from '../../utils/presentationStorage';
 
 const AGENT_ID = 'cmisy479x0001qglw77xrr8pw';
 const AGENT_BASE_URL = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:3900';
@@ -19,16 +20,61 @@ export default function InfoGraph() {
 function InfoGraphContent() {
   const [presentationState, setPresentationState] = useState<PresentationState>(EMPTY_PRESENTATION);
   const presentationStateRef = useRef(presentationState);
-  const { isAnyChatOpen } = useHsafa();
+  const { currentChatId, isAnyChatOpen } = useHsafa();
+  const readStoredChatId = useCallback(() => {
+    try { return localStorage.getItem(`hsafaChat_${AGENT_ID}.currentChatId`); } catch { return null; }
+  }, []);
+  const resolveActiveChatId = useCallback(() => (currentChatId || readStoredChatId() || undefined) as string | undefined, [currentChatId, readStoredChatId]);
 
   useEffect(() => {
     presentationStateRef.current = presentationState;
   }, [presentationState]);
 
+  // Load latest presentation when chat changes or on mount
+  useEffect(() => {
+    const id = resolveActiveChatId();
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        console.log('[Presentation] Loading latest presentation for chat', id);
+        const latest = await loadLatestPresentation(String(id));
+        if (cancelled) return;
+        setPresentationState(latest || EMPTY_PRESENTATION);
+        console.log('[Presentation] Loaded latest presentation result', { chatId: id, hasLatest: !!latest, slidesCount: latest ? latest.slides.length : 0 });
+      } catch (e) {
+        console.error('[Presentation] LoadLatest error', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentChatId, isAnyChatOpen, resolveActiveChatId]);
+
   const presentationTools = useMemo(
     () => createPresentationTools(() => presentationStateRef.current, setPresentationState),
     [setPresentationState]
   );
+
+  // Debounced autosave of the latest presentation for the active chat
+  const autosaveTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const id = resolveActiveChatId();
+    if (!id || !isAnyChatOpen) return;
+    if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
+    console.log('[Presentation] Autosave scheduled for chat', id);
+    autosaveTimerRef.current = window.setTimeout(async () => {
+      try {
+        const summary = { slidesCount: presentationStateRef.current.slides.length };
+        console.log('[Presentation] Autosave firing', { chatId: id, messageId: '__latest', summary });
+        await savePresentationVersion(String(id), '__latest', presentationStateRef.current);
+        console.log('[Presentation] Autosave done', { chatId: id });
+      } catch (e) {
+        console.error('[Presentation] AutoSave error', e);
+      }
+    }, 800);
+    return () => {
+      if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
+    };
+  }, [presentationState, currentChatId, isAnyChatOpen, resolveActiveChatId]);
 
   return (
     <>
