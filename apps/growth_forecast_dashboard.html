@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Growth Forecast 2024-2030 - Rafed Transport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.0"></script>
+    <script src="shared.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .kpi-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .growth-indicator { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    </style>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen text-white">
+    <!-- Header -->
+    <header class="bg-black/30 backdrop-blur py-4 px-6 border-b border-white/10">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold">📈 Growth Forecast 2024-2030</h1>
+                <p class="text-slate-400 text-sm">Student Population & Transport Demand Projections</p>
+            </div>
+            <div class="text-right">
+                <span id="data-badge" class="hidden inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-200 border border-amber-400/30 mb-1">
+                    <span class="w-2 h-2 rounded-full bg-amber-300 animate-pulse"></span>
+                    Demo data (ClickHouse offline)
+                </span>
+                <p class="text-xs text-slate-500">Data Source</p>
+                <p class="text-sm text-slate-300">GaStat + MOE Projections</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        <!-- Executive Summary KPIs -->
+        <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="kpi-card bg-white/10 backdrop-blur rounded-xl p-5 border border-white/10">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">2024 Students</p>
+                <p class="text-2xl font-bold" id="kpi2024">--</p>
+                <p class="text-xs text-slate-500">Baseline</p>
+            </div>
+            <div class="kpi-card bg-white/10 backdrop-blur rounded-xl p-5 border border-white/10">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">2030 Forecast</p>
+                <p class="text-2xl font-bold text-emerald-400" id="kpi2030">--</p>
+                <p class="text-xs text-emerald-500 growth-indicator">↑ <span id="kpiGrowth">--</span>% growth</p>
+            </div>
+            <div class="kpi-card bg-white/10 backdrop-blur rounded-xl p-5 border border-white/10">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Transport Eligible</p>
+                <p class="text-2xl font-bold text-blue-400" id="kpiEligible">--</p>
+                <p class="text-xs text-slate-500">by 2030</p>
+            </div>
+            <div class="kpi-card bg-white/10 backdrop-blur rounded-xl p-5 border border-white/10">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">CAGR</p>
+                <p class="text-2xl font-bold text-amber-400" id="kpiCAGR">--</p>
+                <p class="text-xs text-slate-500">Avg Annual Rate</p>
+            </div>
+            <div class="kpi-card bg-white/10 backdrop-blur rounded-xl p-5 border border-white/10">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Additional Students</p>
+                <p class="text-2xl font-bold text-purple-400" id="kpiAdditional">--</p>
+                <p class="text-xs text-slate-500">2024→2030</p>
+            </div>
+        </section>
+
+        <!-- Main Forecast Chart -->
+        <section class="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 class="text-lg font-semibold mb-4">🎯 Student Population Forecast (2024-2030)</h3>
+            <div style="height: 350px;">
+                <canvas id="forecastChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Segment Analysis -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- By Education Stage -->
+            <div class="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold mb-4">📚 Growth by Education Stage</h3>
+                <canvas id="stageChart" height="250"></canvas>
+            </div>
+
+            <!-- Transport Eligible Trend -->
+            <div class="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold mb-4">🚌 Transport Eligible Students</h3>
+                <canvas id="eligibleChart" height="250"></canvas>
+            </div>
+        </section>
+
+        <!-- Growth Rate Analysis -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Annual Growth Rates -->
+            <div class="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold mb-4">📊 Annual Growth Rate (%)</h3>
+                <canvas id="growthRateChart" height="200"></canvas>
+            </div>
+
+            <!-- Year over Year Table -->
+            <div class="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 col-span-2">
+                <h3 class="text-lg font-semibold mb-4">📋 Year-by-Year Projections</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="border-b border-white/20">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Year</th>
+                                <th class="px-3 py-2 text-right">Total Students</th>
+                                <th class="px-3 py-2 text-right">Primary</th>
+                                <th class="px-3 py-2 text-right">Intermediate</th>
+                                <th class="px-3 py-2 text-right">Secondary</th>
+                                <th class="px-3 py-2 text-right">Transport Eligible</th>
+                                <th class="px-3 py-2 text-right">Growth %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTable" class="divide-y divide-white/10">
+                            <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Capacity Planning Implications -->
+        <section class="bg-gradient-to-r from-emerald-900/50 to-teal-900/50 rounded-xl p-6 border border-emerald-500/30">
+            <h3 class="text-lg font-semibold mb-4">🎯 Strategic Planning Implications</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-black/20 rounded-lg p-4">
+                    <p class="text-emerald-400 font-semibold text-sm mb-2">Fleet Expansion Required</p>
+                    <p class="text-3xl font-bold" id="fleetExpansion">--</p>
+                    <p class="text-xs text-slate-400 mt-1">Additional buses by 2030</p>
+                </div>
+                <div class="bg-black/20 rounded-lg p-4">
+                    <p class="text-blue-400 font-semibold text-sm mb-2">New Routes Needed</p>
+                    <p class="text-3xl font-bold" id="newRoutes">--</p>
+                    <p class="text-xs text-slate-400 mt-1">To serve additional students</p>
+                </div>
+                <div class="bg-black/20 rounded-lg p-4">
+                    <p class="text-amber-400 font-semibold text-sm mb-2">Est. Investment Required</p>
+                    <p class="text-3xl font-bold" id="investment">--</p>
+                    <p class="text-xs text-slate-400 mt-1">SAR Million (infrastructure)</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Offline/sample fallback so the dashboard still works when ClickHouse isn't reachable
+        const SAMPLE_FORECAST = [
+            { year: 2024, total_students_forecast: 5600000, primary_segment: 2400000, intermediate_segment: 1800000, secondary_segment: 1400000, annual_growth_rate_percent: 0.0, transport_eligible_students: 2800000 },
+            { year: 2025, total_students_forecast: 5750000, primary_segment: 2450000, intermediate_segment: 1850000, secondary_segment: 1450000, annual_growth_rate_percent: 2.7, transport_eligible_students: 2920000 },
+            { year: 2026, total_students_forecast: 5900000, primary_segment: 2500000, intermediate_segment: 1900000, secondary_segment: 1500000, annual_growth_rate_percent: 2.6, transport_eligible_students: 3040000 },
+            { year: 2027, total_students_forecast: 6050000, primary_segment: 2550000, intermediate_segment: 1950000, secondary_segment: 1550000, annual_growth_rate_percent: 2.5, transport_eligible_students: 3170000 },
+            { year: 2028, total_students_forecast: 6200000, primary_segment: 2600000, intermediate_segment: 2000000, secondary_segment: 1600000, annual_growth_rate_percent: 2.5, transport_eligible_students: 3290000 },
+            { year: 2029, total_students_forecast: 6350000, primary_segment: 2650000, intermediate_segment: 2050000, secondary_segment: 1650000, annual_growth_rate_percent: 2.4, transport_eligible_students: 3420000 },
+            { year: 2030, total_students_forecast: 6500000, primary_segment: 2700000, intermediate_segment: 2100000, secondary_segment: 1700000, annual_growth_rate_percent: 2.4, transport_eligible_students: 3550000 }
+        ];
+
+        async function query(sql) {
+            // Use shared ClickHouse helper to hit the correct base URL and settings
+            const res = await queryClickHouseFull(sql);
+            return res && res.success ? res.data || [] : [];
+        }
+
+        async function loadDashboard() {
+            let forecastData = await query(`
+                SELECT year, total_students_forecast, primary_segment, intermediate_segment, 
+                       secondary_segment, annual_growth_rate_percent, transport_eligible_students
+                FROM support_data_report3_student_growth_forecast_to_2030
+                ORDER BY year ASC
+            `);
+
+            // If ClickHouse is unreachable, switch to sample data so the page still renders
+            const usingSample = !forecastData.length;
+            if (usingSample) {
+                console.warn('Using sample forecast data because ClickHouse is unreachable.');
+                forecastData = SAMPLE_FORECAST;
+                const badge = document.getElementById('data-badge');
+                if (badge) badge.classList.remove('hidden');
+            }
+
+            // Calculate KPIs
+            const first = forecastData[0];
+            const last = forecastData[forecastData.length - 1];
+            const totalGrowth = ((last.total_students_forecast - first.total_students_forecast) / first.total_students_forecast * 100).toFixed(1);
+            const additionalStudents = last.total_students_forecast - first.total_students_forecast;
+            const cagr = (Math.pow(last.total_students_forecast / first.total_students_forecast, 1/6) - 1) * 100;
+
+            document.getElementById('kpi2024').textContent = (first.total_students_forecast / 1000000).toFixed(2) + 'M';
+            document.getElementById('kpi2030').textContent = (last.total_students_forecast / 1000000).toFixed(2) + 'M';
+            document.getElementById('kpiGrowth').textContent = totalGrowth;
+            document.getElementById('kpiEligible').textContent = (last.transport_eligible_students / 1000000).toFixed(2) + 'M';
+            document.getElementById('kpiCAGR').textContent = cagr.toFixed(1) + '%';
+            document.getElementById('kpiAdditional').textContent = '+' + (additionalStudents / 1000).toFixed(0) + 'K';
+
+            // Strategic planning estimates (assuming ~30 students per bus, 50% eligible use transport)
+            const additionalEligible = last.transport_eligible_students - first.transport_eligible_students;
+            const busesNeeded = Math.ceil(additionalEligible * 0.5 / 30);
+            const routesNeeded = Math.ceil(busesNeeded * 1.2); // Some routes need multiple buses
+            const investmentM = (busesNeeded * 350000 / 1000000).toFixed(0); // ~350K SAR per bus
+
+            document.getElementById('fleetExpansion').textContent = busesNeeded.toLocaleString();
+            document.getElementById('newRoutes').textContent = routesNeeded.toLocaleString();
+            document.getElementById('investment').textContent = investmentM + 'M';
+
+            // Main Forecast Chart
+            new Chart(document.getElementById('forecastChart'), {
+                type: 'line',
+                data: {
+                    labels: forecastData.map(r => r.year),
+                    datasets: [{
+                        label: 'Total Students',
+                        data: forecastData.map(r => r.total_students_forecast),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#10b981'
+                    }, {
+                        label: 'Transport Eligible',
+                        data: forecastData.map(r => r.transport_eligible_students),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.1)' }, 
+                            ticks: { color: '#94a3b8', callback: v => (v/1000000).toFixed(1) + 'M' }
+                        }
+                    }
+                }
+            });
+
+            // Stage Chart - Stacked Area
+            new Chart(document.getElementById('stageChart'), {
+                type: 'line',
+                data: {
+                    labels: forecastData.map(r => r.year),
+                    datasets: [{
+                        label: 'Primary',
+                        data: forecastData.map(r => r.primary_segment),
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.3)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Intermediate',
+                        data: forecastData.map(r => r.intermediate_segment),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Secondary',
+                        data: forecastData.map(r => r.secondary_segment),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.3)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            stacked: true,
+                            grid: { color: 'rgba(255,255,255,0.1)' }, 
+                            ticks: { color: '#94a3b8', callback: v => (v/1000000).toFixed(1) + 'M' }
+                        }
+                    }
+                }
+            });
+
+            // Transport Eligible Chart
+            new Chart(document.getElementById('eligibleChart'), {
+                type: 'bar',
+                data: {
+                    labels: forecastData.map(r => r.year),
+                    datasets: [{
+                        label: 'Transport Eligible',
+                        data: forecastData.map(r => r.transport_eligible_students),
+                        backgroundColor: forecastData.map((r, i) => 
+                            i === forecastData.length - 1 ? '#10b981' : '#3b82f6'
+                        ),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.1)' }, 
+                            ticks: { color: '#94a3b8', callback: v => (v/1000000).toFixed(1) + 'M' }
+                        }
+                    }
+                }
+            });
+
+            // Growth Rate Chart
+            new Chart(document.getElementById('growthRateChart'), {
+                type: 'bar',
+                data: {
+                    labels: forecastData.map(r => r.year),
+                    datasets: [{
+                        label: 'Growth Rate %',
+                        data: forecastData.map(r => parseFloat(r.annual_growth_rate_percent)),
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.1)' }, 
+                            ticks: { color: '#94a3b8', callback: v => v + '%' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Forecast Table
+            document.getElementById('forecastTable').innerHTML = forecastData.map((r, i) => `
+                <tr class="hover:bg-white/5 ${i === forecastData.length - 1 ? 'bg-emerald-500/10 font-semibold' : ''}">
+                    <td class="px-3 py-2 font-mono">${r.year}</td>
+                    <td class="px-3 py-2 text-right font-mono">${parseInt(r.total_students_forecast).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right font-mono text-green-400">${parseInt(r.primary_segment).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right font-mono text-blue-400">${parseInt(r.intermediate_segment).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right font-mono text-amber-400">${parseInt(r.secondary_segment).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right font-mono text-purple-400">${parseInt(r.transport_eligible_students).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right">
+                        <span class="px-2 py-0.5 rounded text-xs ${parseFloat(r.annual_growth_rate_percent) > 2.3 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}">
+                            +${r.annual_growth_rate_percent}%
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

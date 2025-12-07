@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed Coverage | Beneficiaries vs Accommodated</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.4s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        .card:hover { border-color: #475569; }
+        .kpi-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background: #1f2937; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="p-6 min-h-screen">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-600/30">
+                <iconify-icon icon="solar:chart-square-bold" class="text-2xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Rafed Coverage Dashboard</h1>
+                <p class="dashboard-subtitle">General Education Beneficiaries vs Accommodated (Contracts View)</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:home-2-bold" width="16" height="16"></iconify-icon>
+                Home
+            </a>
+            <button onclick="refreshData()" id="refresh-btn" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16" id="refresh-icon"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+        <!-- Total Beneficiaries -->
+        <div class="card kpi-card p-5 animate-fade-in" style="animation-delay:0.05s">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:users-group-rounded-bold" class="text-emerald-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Beneficiaries</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1" id="kpi-beneficiaries">
+                <div class="skeleton h-7 w-24 rounded"></div>
+            </div>
+            <p class="text-xs text-slate-500">From Rafed General Education contracts</p>
+        </div>
+
+        <!-- Total Accommodated -->
+        <div class="card kpi-card p-5 animate-fade-in" style="animation-delay:0.1s">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:bus-bold" class="text-blue-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Accommodated</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1" id="kpi-accommodated">
+                <div class="skeleton h-7 w-24 rounded"></div>
+            </div>
+            <p class="text-xs text-slate-500">Students actually served by transport</p>
+        </div>
+
+        <!-- Coverage Rate -->
+        <div class="card kpi-card p-5 animate-fade-in" style="animation-delay:0.15s">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:target-bold" class="text-indigo-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Coverage Rate</h3>
+            </div>
+            <div class="text-3xl font-bold text-emerald-400 mb-1" id="kpi-coverage">
+                <div class="skeleton h-7 w-20 rounded"></div>
+            </div>
+            <p class="text-xs text-slate-500">Accommodated ÷ Beneficiaries</p>
+        </div>
+
+        <!-- Contracts -->
+        <div class="card kpi-card p-5 animate-fade-in" style="animation-delay:0.2s">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:document-bold" class="text-amber-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Active Contracts</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1" id="kpi-contracts">
+                <div class="skeleton h-7 w-20 rounded"></div>
+            </div>
+            <p class="text-xs text-slate-500">Unique Rafed contract numbers</p>
+        </div>
+    </section>
+
+    <!-- Main Layout -->
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <!-- Region Coverage Chart -->
+        <div class="xl:col-span-2 card flex flex-col animate-slide-up">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:buildings-2-bold" class="text-emerald-400"></iconify-icon>
+                    Coverage by Region
+                </h3>
+                <p class="text-xs text-slate-500" id="regions-subtitle">Top regions by beneficiary volume</p>
+            </div>
+            <div class="p-4 h-[360px]">
+                <canvas id="chart-regions"></canvas>
+            </div>
+        </div>
+
+        <!-- Gap Table -->
+        <div class="card flex flex-col animate-slide-up" style="animation-delay:0.1s">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:danger-triangle-bold" class="text-rose-400"></iconify-icon>
+                    Highest Uncovered Demand
+                </h3>
+            </div>
+            <div class="p-4 overflow-y-auto" style="max-height: 360px;">
+                <table class="w-full text-xs">
+                    <thead class="text-slate-400 border-b border-slate-700">
+                        <tr>
+                            <th class="py-2 text-left">Region</th>
+                            <th class="py-2 text-right">Beneficiaries</th>
+                            <th class="py-2 text-right">Accommodated</th>
+                            <th class="py-2 text-right text-rose-300">Gap</th>
+                            <th class="py-2 text-right">Coverage</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gap-table" class="divide-y divide-slate-800">
+                        <tr><td colspan="5" class="py-6 text-center text-slate-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contract-level Chart -->
+    <section class="mt-6 card animate-slide-up" style="animation-delay:0.15s">
+        <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                <iconify-icon icon="solar:document-bold" class="text-sky-400"></iconify-icon>
+                Top Contracts by Gap
+            </h3>
+            <p class="text-xs text-slate-500">Largest difference between beneficiaries and accommodated</p>
+        </div>
+        <div class="p-4 h-[320px]">
+            <canvas id="chart-contracts"></canvas>
+        </div>
+    </section>
+
+    <footer class="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500">
+        <span>Rafed Analytics Platform • Coverage from support_data_rafed_general_ed_* tables</span>
+        <span>Last refresh: <span id="last-update">--</span></span>
+    </footer>
+
+    <script>
+        let regionsChart = null;
+        let contractsChart = null;
+        let isLoading = false;
+
+        const formatNum = (n) => fmt.number(n);
+        const formatPct = (v) => fmt.percent(v * 100, 1);
+
+        async function queryCH(sql) {
+            const res = await queryClickHouseFull(sql);
+            return res && res.success ? res.data : [];
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            const btn = document.getElementById('refresh-btn');
+            const icon = document.getElementById('refresh-icon');
+            if (!btn || !icon) return;
+            btn.disabled = loading;
+            icon.style.animation = loading ? 'spin 1s linear infinite' : 'none';
+        }
+
+        function updateTimestamp() {
+            const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('last-update').textContent = now;
+        }
+
+        async function loadKPIs() {
+            // Using the confirmed table names from ClickHouse
+            const sql = `
+                SELECT
+                    (SELECT count(*) FROM default.support_data_rafed_general_ed_beneficiaries) as beneficiaries,
+                    (SELECT count(*) FROM default.support_data_rafed_general_ed_accommodated) as accommodated,
+                    (SELECT count(DISTINCT contract_number) FROM default.support_data_rafed_general_ed_beneficiaries) as contracts
+            `;
+            
+            const rows = await queryCH(sql);
+            if (!rows.length) return;
+            const r = rows[0];
+
+            const totalBeneficiaries = Number(r.beneficiaries || 0);
+            const totalAccommodated = Number(r.accommodated || 0);
+            const coverage = totalBeneficiaries > 0 ? (totalAccommodated / totalBeneficiaries) : 0;
+
+            document.getElementById('kpi-beneficiaries').textContent = formatNum(totalBeneficiaries);
+            document.getElementById('kpi-accommodated').textContent = formatNum(totalAccommodated);
+            document.getElementById('kpi-contracts').textContent = formatNum(r.contracts || 0);
+            document.getElementById('kpi-coverage').textContent = fmt.percent(coverage * 100, 1);
+        }
+
+        async function loadRegionCoverage() {
+            // Joining beneficiaries and accommodated tables by contract_number to calculate gaps per region
+            // Note: We assume contract_number is the linking key. 
+            // In the new datasets, we need to ensure we aggregate correctly.
+            // Since the structure is one row per school/contract entry, we sum the student counts.
+            
+            const sql = `
+                SELECT
+                    coalesce(b.region_english, b.region_arabic, 'Unknown') AS region,
+                    sum(b.total_included_students) AS beneficiaries,
+                    sum(a.total_included_students) AS accommodated,
+                    sum(b.total_included_students) - sum(a.total_included_students) AS gap,
+                    if(sum(b.total_included_students) > 0,
+                       sum(a.total_included_students) / sum(b.total_included_students),
+                       0) AS coverage
+                FROM default.support_data_rafed_general_ed_beneficiaries b
+                LEFT JOIN default.support_data_rafed_general_ed_accommodated a
+                    ON b.contract_number = a.contract_number 
+                    AND b.school_name = a.school_name -- Adding school name to ensure unique match if contract covers multiple schools
+                GROUP BY region
+                ORDER BY beneficiaries DESC
+                LIMIT 15
+            `;
+            
+            const rows = await queryCH(sql);
+            if (!rows.length) return;
+
+            const labels = rows.map(r => r.region || 'Unknown');
+            const beneficiaries = rows.map(r => Number(r.beneficiaries || 0));
+            const accommodated = rows.map(r => Number(r.accommodated || 0));
+            const coveragePct = rows.map(r => (Number(r.coverage || 0) * 100));
+
+            // Destroy previous chart
+            if (regionsChart) regionsChart.destroy();
+
+            const ctx = document.getElementById('chart-regions');
+            regionsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Beneficiaries',
+                            data: beneficiaries,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Accommodated',
+                            data: accommodated,
+                            backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        },
+                        {
+                            type: 'line',
+                            label: 'Coverage %',
+                            data: coveragePct,
+                            borderColor: '#fbbf24',
+                            backgroundColor: '#fbbf24',
+                            yAxisID: 'y1',
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 2
+                        }
+                    ]
+                },
+                options: getChartOptions({
+                    scales: {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            ticks: {
+                                callback: (v) => fmt.compact(v)
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                callback: (v) => v + '%'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    if (ctx.dataset.label === 'Coverage %') {
+                                        return ctx.formattedValue + '%';
+                                    }
+                                    return `${ctx.dataset.label}: ${fmt.number(ctx.raw)}`;
+                                }
+                            }
+                        }
+                    }
+                }, 'dark')
+            });
+
+            // Gap table (sorted by gap desc)
+            const tbody = document.getElementById('gap-table');
+            tbody.innerHTML = '';
+            const sortedByGap = [...rows].sort((a, b) => Number(b.gap || 0) - Number(a.gap || 0));
+            sortedByGap.slice(0, 15).forEach(r => {
+                const gap = Number(r.gap || 0);
+                const cov = Number(r.coverage || 0);
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/50';
+                tr.innerHTML = `
+                    <td class="py-2 pr-2 text-slate-200">${r.region || 'Unknown'}</td>
+                    <td class="py-2 pr-2 text-right text-slate-300 font-mono">${fmt.number(r.beneficiaries || 0)}</td>
+                    <td class="py-2 pr-2 text-right text-slate-300 font-mono">${fmt.number(r.accommodated || 0)}</td>
+                    <td class="py-2 pr-2 text-right font-mono ${gap > 0 ? 'text-rose-300' : 'text-emerald-300'}">${fmt.number(gap)}</td>
+                    <td class="py-2 text-right text-slate-300 font-mono">${(cov * 100).toFixed(1)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function loadContractGaps() {
+            // Aggregating by contract to find biggest deficits
+            const sql = `
+                SELECT
+                    b.contract_number AS contract,
+                    any(coalesce(b.edu_admin_new, b.school_name)) AS admin,
+                    sum(b.total_included_students) AS beneficiaries,
+                    sum(a.total_included_students) AS accommodated,
+                    sum(b.total_included_students) - sum(a.total_included_students) AS gap
+                FROM default.support_data_rafed_general_ed_beneficiaries b
+                LEFT JOIN default.support_data_rafed_general_ed_accommodated a
+                    ON b.contract_number = a.contract_number
+                    AND b.school_name = a.school_name
+                GROUP BY contract
+                HAVING gap > 0
+                ORDER BY gap DESC
+                LIMIT 15
+            `;
+            
+            const rows = await queryCH(sql);
+            if (!rows.length) return;
+
+            const labels = rows.map(r => r.contract || 'N/A');
+            const gaps = rows.map(r => Number(r.gap || 0));
+            const beneficiaries = rows.map(r => Number(r.beneficiaries || 0));
+
+            if (contractsChart) contractsChart.destroy();
+
+            const ctx = document.getElementById('chart-contracts');
+            contractsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Gap (Beneficiaries - Accommodated)',
+                            data: gaps,
+                            backgroundColor: 'rgba(248, 113, 113, 0.9)',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        }
+                    ]
+                },
+                options: getChartOptions({
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => `Contract ${items[0].label}`,
+                                label: (ctx) => `Gap: ${fmt.number(ctx.raw)} students`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(51, 65, 85, 0.7)' },
+                            ticks: { callback: (v) => fmt.compact(v) }
+                        },
+                        y: { grid: { display: false } }
+                    }
+                }, 'dark')
+            });
+        }
+
+        window.refreshData = async function() {
+            if (isLoading) return;
+            setLoading(true);
+            try {
+                await Promise.all([
+                    loadKPIs(),
+                    loadRegionCoverage(),
+                    loadContractGaps()
+                ]);
+                updateTimestamp();
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        (async function init() {
+            await window.refreshData();
+        })();
+    </script>
+</body>
+</html>

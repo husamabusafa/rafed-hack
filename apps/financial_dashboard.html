@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Financial & Cost Analysis - Rafed Transport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .kpi-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        #map { width: 100%; height: 400px; border-radius: 12px; }
+        .cost-bar { transition: width 0.5s ease; }
+    </style>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-emerald-700 to-teal-600 text-white py-4 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold">💰 Financial & Cost Analysis</h1>
+                <p class="text-emerald-100 text-sm">Transport Cost Structure & Subsidy Analysis</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-emerald-200">Last Updated</p>
+                <p class="font-mono" id="lastUpdate">Loading...</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        <!-- KPI Cards Row -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-emerald-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Avg Cost/Student</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiAvgCost">--</p>
+                <p class="text-xs text-gray-400">SAR/Year</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-blue-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Avg Subsidy</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiAvgSubsidy">--</p>
+                <p class="text-xs text-gray-400">SAR/Student</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-amber-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Family Payment</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiAvgPayment">--</p>
+                <p class="text-xs text-gray-400">SAR Avg</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-purple-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Premium Service</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiPremium">--</p>
+                <p class="text-xs text-gray-400">SAR/Year</p>
+            </div>
+        </section>
+
+        <!-- Charts Row -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Cost Structure Breakdown -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">📊 Cost Structure Breakdown</h3>
+                <canvas id="costStructureChart" height="250"></canvas>
+            </div>
+
+            <!-- Regional Cost Comparison -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🏢 Regional Cost Comparison</h3>
+                <canvas id="regionalCostChart" height="250"></canvas>
+            </div>
+        </section>
+
+        <!-- Subsidy Analysis Row -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Subsidy vs Family Payment -->
+            <div class="bg-white rounded-xl p-6 shadow-md col-span-2">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">💳 Subsidy vs Family Contribution by Region</h3>
+                <canvas id="subsidyChart" height="200"></canvas>
+            </div>
+
+            <!-- Willingness to Pay -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">📈 Willingness to Pay</h3>
+                <canvas id="willingnessChart" height="200"></canvas>
+            </div>
+        </section>
+
+        <!-- Regional Cost Map -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">🗺️ Regional Cost Heat Map</h3>
+            <div id="map"></div>
+            <div class="mt-3 flex items-center justify-center gap-6 text-sm">
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-green-500"></span> Low Cost (&lt;3500 SAR)</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-yellow-500"></span> Medium (3500-4200)</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-red-500"></span> High Cost (&gt;4200 SAR)</span>
+            </div>
+        </section>
+
+        <!-- Detailed Cost Table -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">📋 Regional Cost Details</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">Region</th>
+                            <th class="px-4 py-3 text-right font-semibold">Base Cost</th>
+                            <th class="px-4 py-3 text-right font-semibold">Subsidy</th>
+                            <th class="px-4 py-3 text-right font-semibold">Family Pay</th>
+                            <th class="px-4 py-3 text-right font-semibold">Premium</th>
+                            <th class="px-4 py-3 text-left font-semibold">Cost Breakdown</th>
+                        </tr>
+                    </thead>
+                    <tbody id="costTable" class="divide-y divide-gray-100">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const CH_API = 'http://localhost:8155/?user=viewer&password=rafed_view&max_result_rows=0';
+        
+        async function query(sql) {
+            const res = await fetch(CH_API, {
+                method: 'POST',
+                body: sql + ' FORMAT JSON'
+            });
+            const json = await res.json();
+            return json.data || [];
+        }
+
+        // Color helper based on cost
+        function getCostColor(cost) {
+            if (cost < 3500) return [34, 197, 94];  // green
+            if (cost < 4200) return [234, 179, 8];  // yellow
+            return [239, 68, 68];  // red
+        }
+
+        async function loadDashboard() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+
+            // Load cost structure data
+            const costData = await query(`
+                SELECT region, base_cost_per_student_sar, subsidy_per_student_sar, 
+                       family_payment_sar, premium_service_cost_sar,
+                       vehicle_operations_percent, driver_salaries_percent, 
+                       fuel_percent, maintenance_percent, insurance_admin_percent
+                FROM support_data_report10_cost_per_student_structure
+                ORDER BY base_cost_per_student_sar DESC
+            `);
+
+            // Calculate KPIs
+            const avgCost = costData.reduce((s, r) => s + parseFloat(r.base_cost_per_student_sar), 0) / costData.length;
+            const avgSubsidy = costData.reduce((s, r) => s + parseFloat(r.subsidy_per_student_sar), 0) / costData.length;
+            const avgPayment = costData.reduce((s, r) => s + parseFloat(r.family_payment_sar), 0) / costData.length;
+            const avgPremium = costData.reduce((s, r) => s + parseFloat(r.premium_service_cost_sar), 0) / costData.length;
+
+            document.getElementById('kpiAvgCost').textContent = Math.round(avgCost).toLocaleString();
+            document.getElementById('kpiAvgSubsidy').textContent = Math.round(avgSubsidy).toLocaleString();
+            document.getElementById('kpiAvgPayment').textContent = Math.round(avgPayment).toLocaleString();
+            document.getElementById('kpiPremium').textContent = Math.round(avgPremium).toLocaleString();
+
+            // Cost Structure Pie Chart
+            const avgStructure = {
+                vehicle: costData.reduce((s, r) => s + parseFloat(r.vehicle_operations_percent), 0) / costData.length,
+                driver: costData.reduce((s, r) => s + parseFloat(r.driver_salaries_percent), 0) / costData.length,
+                fuel: costData.reduce((s, r) => s + parseFloat(r.fuel_percent), 0) / costData.length,
+                maintenance: costData.reduce((s, r) => s + parseFloat(r.maintenance_percent), 0) / costData.length,
+                insurance: costData.reduce((s, r) => s + parseFloat(r.insurance_admin_percent), 0) / costData.length
+            };
+
+            new Chart(document.getElementById('costStructureChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Vehicle Operations', 'Driver Salaries', 'Fuel', 'Maintenance', 'Insurance & Admin'],
+                    datasets: [{
+                        data: [avgStructure.vehicle, avgStructure.driver, avgStructure.fuel, avgStructure.maintenance, avgStructure.insurance],
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // Regional Cost Bar Chart
+            new Chart(document.getElementById('regionalCostChart'), {
+                type: 'bar',
+                data: {
+                    labels: costData.map(r => r.region),
+                    datasets: [{
+                        label: 'Base Cost (SAR)',
+                        data: costData.map(r => parseFloat(r.base_cost_per_student_sar)),
+                        backgroundColor: costData.map(r => {
+                            const cost = parseFloat(r.base_cost_per_student_sar);
+                            if (cost < 3500) return '#22c55e';
+                            if (cost < 4200) return '#eab308';
+                            return '#ef4444';
+                        })
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+
+            // Subsidy vs Family Payment Chart
+            new Chart(document.getElementById('subsidyChart'), {
+                type: 'bar',
+                data: {
+                    labels: costData.map(r => r.region),
+                    datasets: [
+                        {
+                            label: 'Government Subsidy',
+                            data: costData.map(r => parseFloat(r.subsidy_per_student_sar)),
+                            backgroundColor: '#3b82f6'
+                        },
+                        {
+                            label: 'Family Payment',
+                            data: costData.map(r => parseFloat(r.family_payment_sar)),
+                            backgroundColor: '#f59e0b'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { x: { stacked: true }, y: { stacked: true } }
+                }
+            });
+
+            // Willingness to Pay Chart
+            const wtpData = await query(`SELECT price_segment, percent_of_families_willing FROM support_data_report11b_willingness_to_pay`);
+            new Chart(document.getElementById('willingnessChart'), {
+                type: 'pie',
+                data: {
+                    labels: wtpData.map(r => r.price_segment.split(' ')[0]),
+                    datasets: [{
+                        data: wtpData.map(r => parseFloat(r.percent_of_families_willing)),
+                        backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
+                }
+            });
+
+            // Cost Table
+            const tableBody = document.getElementById('costTable');
+            tableBody.innerHTML = costData.map(r => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">${r.region}</td>
+                    <td class="px-4 py-3 text-right font-mono">${parseFloat(r.base_cost_per_student_sar).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right font-mono text-blue-600">${parseFloat(r.subsidy_per_student_sar).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right font-mono text-amber-600">${parseFloat(r.family_payment_sar).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right font-mono text-purple-600">${parseFloat(r.premium_service_cost_sar).toLocaleString()}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex gap-0.5 h-4">
+                            <div class="bg-emerald-500 cost-bar" style="width: ${r.vehicle_operations_percent}%" title="Vehicle ${r.vehicle_operations_percent}%"></div>
+                            <div class="bg-blue-500 cost-bar" style="width: ${r.driver_salaries_percent}%" title="Driver ${r.driver_salaries_percent}%"></div>
+                            <div class="bg-amber-500 cost-bar" style="width: ${r.fuel_percent}%" title="Fuel ${r.fuel_percent}%"></div>
+                            <div class="bg-purple-500 cost-bar" style="width: ${r.maintenance_percent}%" title="Maint ${r.maintenance_percent}%"></div>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Load map data
+            const mapData = await query(`
+                SELECT region_name_en, lat, lon, base_cost_per_student_sar, subsidy_per_student_sar
+                FROM vw_region_transport_costs WHERE lat IS NOT NULL
+            `);
+
+            // Initialize Map
+            window.mapboxgl = maplibregl;
+            const map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+                center: [45.0, 24.0],
+                zoom: 4.5
+            });
+
+            map.on('load', () => {
+                const deckOverlay = new deck.MapboxLayer({
+                    id: 'cost-layer',
+                    type: deck.ScatterplotLayer,
+                    data: mapData.map(r => ({
+                        position: [parseFloat(r.lon), parseFloat(r.lat)],
+                        cost: parseFloat(r.base_cost_per_student_sar),
+                        region: r.region_name_en,
+                        subsidy: parseFloat(r.subsidy_per_student_sar)
+                    })),
+                    getPosition: d => d.position,
+                    getRadius: d => Math.sqrt(d.cost) * 500,
+                    getFillColor: d => [...getCostColor(d.cost), 180],
+                    pickable: true
+                });
+                map.addLayer(deckOverlay);
+            });
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

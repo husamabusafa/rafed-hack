@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed Analytics - School Transport Intelligence Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            margin: 0;
+            min-height: 100vh;
+        }
+        
+        /* Navbar */
+        .navbar {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo-text {
+            background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Cards */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            border-color: rgba(34, 197, 94, 0.3);
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        /* KPI Cards */
+        .kpi-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-color, #22c55e);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .kpi-card:hover::before {
+            opacity: 1;
+        }
+        
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            font-feature-settings: 'tnum';
+        }
+        
+        .kpi-icon {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Navigation Cards */
+        .nav-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+        }
+        
+        .nav-card:hover {
+            border-color: var(--accent-color, #22c55e);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .nav-card .icon-wrapper {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            transition: transform 0.3s;
+        }
+        
+        .nav-card:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+        
+        /* Mini Map */
+        #mini-map {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            height: 300px;
+        }
+        
+        /* Chart containers */
+        .chart-container {
+            height: 280px;
+            position: relative;
+        }
+        
+        /* Pulse animation */
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+        }
+        
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse-green 2s infinite;
+        }
+        
+        /* Skeleton loading */
+        .skeleton {
+            background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 0.5rem;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Responsive grid */
+        .dashboard-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+        
+        @media (min-width: 768px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .nav-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        
+        @media (min-width: 1024px) {
+            .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+            .nav-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        
+        @media (min-width: 1280px) {
+            .nav-grid { grid-template-columns: repeat(5, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <iconify-icon icon="solar:bus-bold" class="text-2xl text-white"></iconify-icon>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold logo-text">Rafed Analytics</h1>
+                    <p class="text-xs text-slate-400">School Transport Intelligence Platform</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full">
+                    <div class="pulse-dot"></div>
+                    <span class="text-xs text-emerald-400 font-medium">Live Data</span>
+                </div>
+                <span class="text-xs text-slate-500" id="last-updated">Loading...</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        
+        <!-- KPI Section -->
+        <section class="mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">National Overview</h2>
+                    <p class="text-sm text-slate-400">Real-time metrics across all 13 regions</p>
+                </div>
+                <button onclick="refreshData()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm text-slate-300 flex items-center gap-2 transition-colors">
+                    <iconify-icon icon="solar:refresh-bold" width="16" height="16" id="refresh-icon"></iconify-icon>
+                    Refresh
+                </button>
+            </div>
+            
+            <div class="dashboard-grid kpi-grid">
+                <!-- KPI 1: Total Students -->
+                <div class="kpi-card" style="--accent-color: #3b82f6;">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="kpi-icon bg-blue-500/20">
+                            <iconify-icon icon="solar:square-academic-cap-bold" class="text-xl text-blue-400"></iconify-icon>
+                        </div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider">Students</span>
+                    </div>
+                    <div class="kpi-value text-white mb-1" id="kpi-students">
+                        <div class="skeleton h-10 w-32"></div>
+                    </div>
+                    <p class="text-sm text-slate-400" id="kpi-students-sub">Loading...</p>
+                </div>
+                
+                <!-- KPI 2: Schools -->
+                <div class="kpi-card" style="--accent-color: #22c55e;">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="kpi-icon bg-emerald-500/20">
+                            <iconify-icon icon="solar:buildings-2-bold" class="text-xl text-emerald-400"></iconify-icon>
+                        </div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider">Schools</span>
+                    </div>
+                    <div class="kpi-value text-white mb-1" id="kpi-schools">
+                        <div class="skeleton h-10 w-24"></div>
+                    </div>
+                    <p class="text-sm text-slate-400" id="kpi-schools-sub">Loading...</p>
+                </div>
+                
+                <!-- KPI 3: Routes -->
+                <div class="kpi-card" style="--accent-color: #a855f7;">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="kpi-icon bg-purple-500/20">
+                            <iconify-icon icon="solar:route-bold" class="text-xl text-purple-400"></iconify-icon>
+                        </div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider">Active Routes</span>
+                    </div>
+                    <div class="kpi-value text-white mb-1" id="kpi-routes">
+                        <div class="skeleton h-10 w-28"></div>
+                    </div>
+                    <p class="text-sm text-slate-400" id="kpi-routes-sub">Loading...</p>
+                </div>
+                
+                <!-- KPI 4: Coverage -->
+                <div class="kpi-card" style="--accent-color: #f59e0b;">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="kpi-icon bg-amber-500/20">
+                            <iconify-icon icon="solar:chart-bold" class="text-xl text-amber-400"></iconify-icon>
+                        </div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider">Bus Eligible</span>
+                    </div>
+                    <div class="kpi-value text-white mb-1" id="kpi-coverage">
+                        <div class="skeleton h-10 w-20"></div>
+                    </div>
+                    <p class="text-sm text-slate-400" id="kpi-coverage-sub">Loading...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Grid: Charts + Map -->
+        <section class="grid lg:grid-cols-3 gap-6 mb-8">
+            <!-- Regional Distribution Chart -->
+            <div class="glass-card p-6 lg:col-span-2">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:chart-2-bold" class="text-emerald-400"></iconify-icon>
+                        Students by Region
+                    </h3>
+                    <span class="text-xs text-slate-500">Top 10 Regions</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="regionChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Mini Map -->
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:map-bold" class="text-blue-400"></iconify-icon>
+                        Coverage Map
+                    </h3>
+                    <a href="regional_demand_map.html" class="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+                        Expand
+                        <iconify-icon icon="solar:arrow-right-linear" width="14" height="14"></iconify-icon>
+                    </a>
+                </div>
+                <div id="mini-map"></div>
+            </div>
+        </section>
+
+        <!-- Secondary Charts -->
+        <section class="grid md:grid-cols-2 gap-6 mb-8">
+            <!-- Transport Mode Distribution -->
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:pie-chart-2-bold" class="text-purple-400"></iconify-icon>
+                        Transport Mode Distribution
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="modeChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Route Utilization -->
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:graph-up-bold" class="text-amber-400"></iconify-icon>
+                        Route Utilization
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="utilizationChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Navigation Section -->
+        <section>
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold text-white">Analytics Modules</h2>
+                <p class="text-sm text-slate-400">Deep-dive into specific transportation insights</p>
+            </div>
+            
+            <div class="dashboard-grid nav-grid">
+                <!-- Distance Analysis -->
+                <a href="distance_analysis_map.html" class="nav-card" style="--accent-color: #3b82f6;">
+                    <div class="icon-wrapper bg-blue-500/20">
+                        <iconify-icon icon="solar:ruler-angular-bold" class="text-xl text-blue-400"></iconify-icon>
+                    </div>
+                    <h4 class="font-semibold text-white mb-1">Distance Analysis</h4>
+                    <p class="text-xs text-slate-400">Home-to-school distance & walkability assessment</p>
+                </a>
+                
+                <!-- Route Utilization -->
+                <a href="route_utilization_map.html" class="nav-card" style="--accent-color: #a855f7;">
+                    <div class="icon-wrapper bg-purple-500/20">
+                        <iconify-icon icon="solar:bus-bold" class="text-xl text-purple-400"></iconify-icon>
+                    </div>
+                    <h4 class="font-semibold text-white mb-1">Route Efficiency</h4>
+                    <p class="text-xs text-slate-400">Fleet utilization & capacity optimization</p>
+                </a>
+                
+                <!-- Regional Demand -->
+                <a href="regional_demand_map.html" class="nav-card" style="--accent-color: #22c55e;">
+                    <div class="icon-wrapper bg-emerald-500/20">
+                        <iconify-icon icon="solar:map-bold" class="text-xl text-emerald-400"></iconify-icon>
+                    </div>
+                    <h4 class="font-semibold text-white mb-1">Regional Demand</h4>
+                    <p class="text-xs text-slate-400">Population demographics & transport demand</p>
+                </a>
+                
+                <!-- Special Needs -->
+                <a href="special_needs_map.html" class="nav-card" style="--accent-color: #8b5cf6;">
+                    <div class="icon-wrapper bg-violet-500/20">
+                        <iconify-icon icon="solar:accessibility-bold" class="text-xl text-violet-400"></iconify-icon>
+                    </div>
+                    <h4 class="font-semibold text-white mb-1">Special Needs</h4>
+                    <p class="text-xs text-slate-400">Inclusive transport coverage & accessibility</p>
+                </a>
+                
+                <!-- Income Analysis -->
+                <a href="income_transport_map.html" class="nav-card" style="--accent-color: #f59e0b;">
+                    <div class="icon-wrapper bg-amber-500/20">
+                        <iconify-icon icon="solar:wallet-money-bold" class="text-xl text-amber-400"></iconify-icon>
+                    </div>
+                    <h4 class="font-semibold text-white mb-1">Socioeconomic</h4>
+                    <p class="text-xs text-slate-400">Income & transport mode correlation</p>
+                </a>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="mt-12 pt-8 border-t border-slate-800">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
+                <div class="flex items-center gap-2">
+                    <iconify-icon icon="solar:database-bold" class="text-emerald-500"></iconify-icon>
+                    <span>Powered by ClickHouse + PostgreSQL</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span id="data-stats">Loading data statistics...</span>
+                </div>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        // Query helper
+        async function query(sql) {
+            const data = await queryClickHouse(sql);
+            return data && data.length >= 0 ? { data } : null;
+        }
+
+        // Animate number
+        function animateNumber(element, target, suffix = '', duration = 1000) {
+            const start = 0;
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = Math.floor(start + (target - start) * eased);
+                
+                if (target >= 1000000) {
+                    element.textContent = (current / 1000000).toFixed(1) + 'M' + suffix;
+                } else if (target >= 1000) {
+                    element.textContent = (current / 1000).toFixed(0) + 'K' + suffix;
+                } else {
+                    element.textContent = current.toLocaleString() + suffix;
+                }
+                
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            
+            requestAnimationFrame(update);
+        }
+
+        // Load KPIs
+        async function loadKPIs() {
+            // Students
+            const students = await query(`
+                SELECT 
+                    count() as total,
+                    countIf(bus_elig = 1) as eligible,
+                    count(DISTINCT region_en) as regions
+                FROM students
+            `);
+            
+            if (students && students.data[0]) {
+                const s = students.data[0];
+                const el = document.getElementById('kpi-students');
+                el.innerHTML = '';
+                animateNumber(el, s.total);
+                document.getElementById('kpi-students-sub').textContent = `${s.regions} regions covered`;
+                
+                const covEl = document.getElementById('kpi-coverage');
+                covEl.innerHTML = '';
+                const pct = ((s.eligible / s.total) * 100).toFixed(1);
+                covEl.textContent = pct + '%';
+                document.getElementById('kpi-coverage-sub').textContent = fmt.compact(s.eligible) + ' students';
+            }
+            
+            // Schools
+            const schools = await query(`SELECT count() as total FROM schools`);
+            if (schools && schools.data[0]) {
+                const el = document.getElementById('kpi-schools');
+                el.innerHTML = '';
+                animateNumber(el, schools.data[0].total);
+                document.getElementById('kpi-schools-sub').textContent = 'Across KSA';
+            }
+            
+            // Routes
+            const routes = await query(`
+                SELECT 
+                    count() as total,
+                    avg(utilization) * 100 as avg_util
+                FROM school_routes
+            `);
+            if (routes && routes.data[0]) {
+                const el = document.getElementById('kpi-routes');
+                el.innerHTML = '';
+                animateNumber(el, routes.data[0].total);
+                document.getElementById('kpi-routes-sub').textContent = `${parseFloat(routes.data[0].avg_util).toFixed(0)}% avg utilization`;
+            }
+        }
+
+        // Load Region Chart
+        async function loadRegionChart() {
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    count() as students
+                FROM students
+                WHERE region_en IS NOT NULL
+                GROUP BY region_en
+                ORDER BY students DESC
+                LIMIT 10
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('regionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.region?.substring(0, 18) || 'Unknown'),
+                        datasets: [{
+                            label: 'Students',
+                            data: data.data.map(d => d.students),
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { 
+                                grid: { color: 'rgba(51, 65, 85, 0.5)' }, 
+                                ticks: { color: '#94a3b8' }
+                            },
+                            y: { 
+                                grid: { display: false }, 
+                                ticks: { color: '#94a3b8', font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Load Transport Mode Chart
+        async function loadModeChart() {
+            const data = await query(`
+                SELECT 
+                    trans_mode as mode,
+                    count() as cnt
+                FROM students
+                WHERE trans_mode IS NOT NULL AND trans_mode != ''
+                GROUP BY trans_mode
+                ORDER BY cnt DESC
+                LIMIT 6
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('modeChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.data.map(d => d.mode || 'Unknown'),
+                        datasets: [{
+                            data: data.data.map(d => d.cnt),
+                            backgroundColor: [
+                                'rgba(34, 197, 94, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(139, 92, 246, 0.8)',
+                                'rgba(236, 72, 153, 0.8)',
+                                'rgba(148, 163, 184, 0.8)'
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { 
+                                position: 'right',
+                                labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 12 }
+                            }
+                        },
+                        cutout: '55%'
+                    }
+                });
+            }
+        }
+
+        // Load Utilization Chart
+        async function loadUtilizationChart() {
+            const data = await query(`
+                SELECT 
+                    multiIf(
+                        utilization < 0.25, '<25%',
+                        utilization < 0.50, '25-50%',
+                        utilization < 0.75, '50-75%',
+                        utilization < 1.0, '75-100%',
+                        '>100%'
+                    ) as bucket,
+                    count() as cnt
+                FROM school_routes
+                WHERE utilization IS NOT NULL
+                GROUP BY bucket
+                ORDER BY bucket
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('utilizationChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.bucket),
+                        datasets: [{
+                            label: 'Routes',
+                            data: data.data.map(d => d.cnt),
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(34, 197, 94, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(139, 92, 246, 0.8)'
+                            ],
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { color: 'rgba(51, 65, 85, 0.5)' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Load Mini Map
+        async function loadMiniMap() {
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    avg(lat) as center_lat,
+                    avg(lon) as center_lon,
+                    count() as students
+                FROM students
+                WHERE lat IS NOT NULL AND lon IS NOT NULL AND region_en IS NOT NULL
+                GROUP BY region_en
+            `);
+            
+            if (data && data.data.length > 0) {
+                const { DeckGL, ScatterplotLayer } = deck;
+                
+                new DeckGL({
+                    container: 'mini-map',
+                    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    initialViewState: {
+                        longitude: 45.0,
+                        latitude: 24.5,
+                        zoom: 4,
+                        pitch: 0
+                    },
+                    controller: true,
+                    layers: [
+                        new ScatterplotLayer({
+                            id: 'regions',
+                            data: data.data,
+                            getPosition: d => [d.center_lon, d.center_lat],
+                            getFillColor: [34, 197, 94],
+                            getRadius: d => Math.sqrt(d.students) * 30,
+                            opacity: 0.7
+                        })
+                    ]
+                });
+            }
+        }
+
+        // Load data stats
+        async function loadDataStats() {
+            const stats = await query(`
+                SELECT 
+                    (SELECT count() FROM students) as students,
+                    (SELECT count() FROM schools) as schools,
+                    (SELECT count() FROM school_routes) as routes
+            `);
+            
+            if (stats && stats.data[0]) {
+                const s = stats.data[0];
+                document.getElementById('data-stats').textContent = 
+                    `${fmt.compact(s.students)} students • ${fmt.compact(s.schools)} schools • ${fmt.compact(s.routes)} routes`;
+            }
+        }
+
+        // Refresh data
+        async function refreshData() {
+            const icon = document.getElementById('refresh-icon');
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            await Promise.all([
+                loadKPIs(),
+                loadDataStats()
+            ]);
+            
+            icon.style.animation = '';
+            document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        }
+
+        // Initialize
+        async function init() {
+            document.getElementById('last-updated').textContent = 'Loading...';
+            
+            await Promise.all([
+                loadKPIs(),
+                loadRegionChart(),
+                loadModeChart(),
+                loadUtilizationChart(),
+                loadMiniMap(),
+                loadDataStats()
+            ]);
+            
+            document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        }
+
+        init();
+    </script>
+</body>
+</html>

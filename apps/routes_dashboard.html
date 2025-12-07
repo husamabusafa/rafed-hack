@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Routes Analytics Dashboard - Rafed Transport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="shared.js"></script>
+    <style>
+        body { background: #0f172a; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; transition: all 0.2s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+        .kpi-value { font-size: 2rem; font-weight: 700; }
+        .gradient-purple { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        .gradient-cyan { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+        .gradient-emerald { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .gradient-amber { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .progress-bar { height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+        #map { border-radius: 12px; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .stat-ring { 
+            width: 80px; height: 80px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center;
+            background: conic-gradient(var(--color) var(--pct), #334155 0);
+        }
+        .stat-ring-inner { 
+            width: 64px; height: 64px; border-radius: 50%; 
+            background: #1e293b; display: flex; align-items: center; justify-content: center;
+        }
+    </style>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+</head>
+<body class="min-h-screen text-gray-100 p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div>
+                <h1 class="dashboard-title">
+                    <iconify-icon icon="solar:route-bold" width="24" height="24" style="color: #8b5cf6;"></iconify-icon>
+                    Routes Analytics
+                </h1>
+                <p class="dashboard-subtitle">Route performance, efficiency, and optimization insights</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="index.html" class="btn btn-secondary btn-sm">
+                    <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                    Back
+                </a>
+                <button onclick="refreshData()" id="refreshBtn" class="btn btn-primary btn-sm">
+                    <iconify-icon icon="solar:refresh-bold" width="16" height="16" id="refreshIcon"></iconify-icon>
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="kpi-card" style="--kpi-accent: #8b5cf6; --kpi-bg: rgba(139, 92, 246, 0.15); --kpi-color: #8b5cf6;">
+                <div class="kpi-header">
+                    <span class="kpi-label">Total Routes</span>
+                    <div class="kpi-icon">
+                        <iconify-icon icon="solar:route-bold" width="20" height="20"></iconify-icon>
+                    </div>
+                </div>
+                <div id="kpi-routes" class="kpi-value">-</div>
+                <p class="kpi-description">Active bus routes</p>
+            </div>
+            <div class="kpi-card" style="--kpi-accent: #06b6d4; --kpi-bg: rgba(6, 182, 212, 0.15); --kpi-color: #06b6d4;">
+                <div class="kpi-header">
+                    <span class="kpi-label">Students Served</span>
+                    <div class="kpi-icon">
+                        <iconify-icon icon="solar:users-group-rounded-bold" width="20" height="20"></iconify-icon>
+                    </div>
+                </div>
+                <div id="kpi-students" class="kpi-value" style="color: #06b6d4;">-</div>
+                <p class="kpi-description">Total passengers</p>
+            </div>
+            <div class="kpi-card" style="--kpi-accent: var(--success); --kpi-bg: var(--success-light); --kpi-color: var(--success);">
+                <div class="kpi-header">
+                    <span class="kpi-label">Avg Distance</span>
+                    <div class="kpi-icon">
+                        <iconify-icon icon="solar:ruler-angular-bold" width="20" height="20"></iconify-icon>
+                    </div>
+                </div>
+                <div id="kpi-distance" class="kpi-value success">-</div>
+                <p class="kpi-description">Per route (km)</p>
+            </div>
+            <div class="kpi-card" style="--kpi-accent: var(--warning); --kpi-bg: var(--warning-light); --kpi-color: var(--warning);">
+                <div class="kpi-header">
+                    <span class="kpi-label">Avg Duration</span>
+                    <div class="kpi-icon">
+                        <iconify-icon icon="solar:clock-circle-bold" width="20" height="20"></iconify-icon>
+                    </div>
+                </div>
+                <div id="kpi-duration" class="kpi-value warning">-</div>
+                <p class="kpi-description">Per route (min)</p>
+            </div>
+        </div>
+
+        <!-- Vehicle Type Distribution & Shift Breakdown -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Vehicle Types -->
+            <div class="card p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Fleet Distribution by Vehicle Type</h3>
+                <div id="vehicle-stats" class="grid grid-cols-3 gap-4">
+                    <div class="pulse bg-slate-700 h-32 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-32 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-32 rounded-lg"></div>
+                </div>
+            </div>
+
+            <!-- Utilization by Vehicle -->
+            <div class="card p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Utilization by Vehicle Type</h3>
+                <div style="height: 200px;">
+                    <canvas id="utilizationChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Efficiency Analysis -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Distance Distribution -->
+            <div class="card p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Distance Distribution</h3>
+                <div style="height: 200px;">
+                    <canvas id="distanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Duration Distribution -->
+            <div class="card p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Duration Distribution</h3>
+                <div style="height: 200px;">
+                    <canvas id="durationChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Students per Route -->
+            <div class="card p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Students per Route</h3>
+                <div style="height: 200px;">
+                    <canvas id="studentsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Map -->
+        <div class="card p-5 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-white">Route Coverage Map</h3>
+                <div class="flex items-center gap-4 text-sm">
+                    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-500"></span> Large Bus</span>
+                    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-500"></span> Medium Bus</span>
+                    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Small Bus</span>
+                </div>
+            </div>
+            <div id="map" style="height: 400px;"></div>
+        </div>
+
+        <!-- Top Routes Tables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Longest Routes -->
+            <div class="card p-5">
+                <h3 class="card-title" style="margin-bottom: 1rem;">
+                    <iconify-icon icon="solar:routing-2-bold" width="20" height="20" style="color: var(--success);"></iconify-icon>
+                    Longest Routes
+                </h3>
+                <div id="longest-routes" class="space-y-2">
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                </div>
+            </div>
+
+            <!-- Most Utilized Routes -->
+            <div class="card p-5">
+                <h3 class="card-title" style="margin-bottom: 1rem;">
+                    <iconify-icon icon="solar:fire-bold" width="20" height="20" style="color: var(--danger);"></iconify-icon>
+                    Highest Utilization Routes
+                </h3>
+                <div id="top-util-routes" class="space-y-2">
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                    <div class="pulse bg-slate-700 h-12 rounded-lg"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, utilizationChart, distanceChart, durationChart, studentsChart;
+
+        async function loadKPIs() {
+            const sql = `SELECT 
+                count(*) as total_routes,
+                sum(student_count) as total_students,
+                round(avg(distance_m) / 1000, 1) as avg_distance_km,
+                round(avg(duration_s) / 60, 0) as avg_duration_min
+            FROM school_routes`;
+            
+            const data = await queryClickHouse(sql);
+            if (data.length) {
+                const row = data[0];
+                animateValue('kpi-routes', 0, row.total_routes, 1500, fmt.compact);
+                animateValue('kpi-students', 0, row.total_students, 1500, fmt.compact);
+                animateValue('kpi-distance', 0, row.avg_distance_km, 1500, v => v.toFixed(1));
+                animateValue('kpi-duration', 0, row.avg_duration_min, 1500, v => Math.round(v));
+            }
+        }
+
+        async function loadVehicleStats() {
+            const sql = `SELECT 
+                vehicle_type,
+                count(*) as routes,
+                sum(student_count) as students,
+                sum(capacity) as capacity,
+                round(avg(utilization), 1) as util
+            FROM school_routes 
+            GROUP BY vehicle_type 
+            ORDER BY routes DESC`;
+            
+            const data = await queryClickHouse(sql);
+            const container = document.getElementById('vehicle-stats');
+            const total = data.reduce((a, b) => a + b.routes, 0);
+            
+            const config = {
+                'large': { icon: '🚌', color: '#8b5cf6', label: 'Large' },
+                'medium': { icon: '🚐', color: '#06b6d4', label: 'Medium' },
+                'small': { icon: '🚙', color: '#f59e0b', label: 'Small' }
+            };
+            
+            container.innerHTML = data.map(row => {
+                const cfg = config[row.vehicle_type] || { icon: '🚗', color: '#6366f1', label: row.vehicle_type };
+                const pct = ((row.routes / total) * 100).toFixed(1);
+                
+                return `
+                    <div class="bg-slate-800 rounded-lg p-4 text-center">
+                        <div class="stat-ring mx-auto mb-3" style="--color: ${cfg.color}; --pct: ${pct}%;">
+                            <div class="stat-ring-inner">
+                                <span class="text-2xl">${cfg.icon}</span>
+                            </div>
+                        </div>
+                        <div class="font-semibold text-white capitalize">${cfg.label}</div>
+                        <div class="text-2xl font-bold text-white">${fmt.compact(row.routes)}</div>
+                        <div class="text-xs text-gray-400">${pct}% of fleet</div>
+                        <div class="text-xs text-gray-500 mt-1">${fmt.compact(row.students)} students</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadUtilizationChart() {
+            const sql = `SELECT 
+                vehicle_type,
+                round(avg(utilization), 1) as util,
+                count(*) as cnt
+            FROM school_routes 
+            GROUP BY vehicle_type 
+            ORDER BY util DESC`;
+            
+            const data = await queryClickHouse(sql);
+            const ctx = document.getElementById('utilizationChart').getContext('2d');
+            if (utilizationChart) utilizationChart.destroy();
+            
+            const colors = { 'large': '#8b5cf6', 'medium': '#06b6d4', 'small': '#f59e0b' };
+            
+            utilizationChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(r => r.vehicle_type.charAt(0).toUpperCase() + r.vehicle_type.slice(1)),
+                    datasets: [{
+                        label: 'Avg Utilization %',
+                        data: data.map(r => r.util),
+                        backgroundColor: data.map(r => colors[r.vehicle_type] || '#6366f1'),
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#9ca3af', callback: v => v + '%' }
+                        },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+
+        async function loadDistanceChart() {
+            const sql = `SELECT 
+                CASE 
+                    WHEN distance_m < 5000 THEN '< 5 km'
+                    WHEN distance_m < 10000 THEN '5-10 km'
+                    WHEN distance_m < 15000 THEN '10-15 km'
+                    WHEN distance_m < 20000 THEN '15-20 km'
+                    ELSE '20+ km'
+                END as dist_range,
+                count(*) as cnt
+            FROM school_routes 
+            GROUP BY dist_range 
+            ORDER BY cnt DESC`;
+            
+            const data = await queryClickHouse(sql);
+            const ctx = document.getElementById('distanceChart').getContext('2d');
+            if (distanceChart) distanceChart.destroy();
+            
+            distanceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(r => r.dist_range),
+                    datasets: [{
+                        data: data.map(r => r.cnt),
+                        backgroundColor: ['#10b981', '#22d3ee', '#a78bfa', '#fbbf24', '#f87171'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#9ca3af', boxWidth: 12, padding: 8 } }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        async function loadDurationChart() {
+            const sql = `SELECT 
+                CASE 
+                    WHEN duration_s < 600 THEN '< 10 min'
+                    WHEN duration_s < 1200 THEN '10-20 min'
+                    WHEN duration_s < 1800 THEN '20-30 min'
+                    WHEN duration_s < 2400 THEN '30-40 min'
+                    ELSE '40+ min'
+                END as dur_range,
+                count(*) as cnt
+            FROM school_routes 
+            GROUP BY dur_range 
+            ORDER BY cnt DESC`;
+            
+            const data = await queryClickHouse(sql);
+            const ctx = document.getElementById('durationChart').getContext('2d');
+            if (durationChart) durationChart.destroy();
+            
+            durationChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(r => r.dur_range),
+                    datasets: [{
+                        data: data.map(r => r.cnt),
+                        backgroundColor: ['#06b6d4', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#9ca3af', boxWidth: 12, padding: 8 } }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        async function loadStudentsChart() {
+            const sql = `SELECT 
+                CASE 
+                    WHEN student_count <= 5 THEN '1-5'
+                    WHEN student_count <= 15 THEN '6-15'
+                    WHEN student_count <= 25 THEN '16-25'
+                    WHEN student_count <= 35 THEN '26-35'
+                    ELSE '35+'
+                END as stu_range,
+                count(*) as cnt
+            FROM school_routes 
+            GROUP BY stu_range 
+            ORDER BY cnt DESC`;
+            
+            const data = await queryClickHouse(sql);
+            const ctx = document.getElementById('studentsChart').getContext('2d');
+            if (studentsChart) studentsChart.destroy();
+            
+            studentsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(r => r.stu_range),
+                    datasets: [{
+                        label: 'Routes',
+                        data: data.map(r => r.cnt),
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#9ca3af', callback: v => fmt.compact(v) }
+                        },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+
+        async function loadMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                center: [45.0, 24.5],
+                zoom: 5
+            });
+
+            map.on('load', async () => {
+                // Load all routes for complete map coverage
+                const sql = `SELECT 
+                    route_id, lat, lon, vehicle_type, student_count, 
+                    round(distance_m/1000, 1) as dist_km, utilization
+                FROM school_routes 
+                WHERE lat IS NOT NULL AND lon IS NOT NULL`;
+                
+                const data = await queryClickHouse(sql);
+                
+                const colorMap = { 'large': '#8b5cf6', 'medium': '#06b6d4', 'small': '#f59e0b' };
+                
+                const features = data.map(row => ({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [row.lon, row.lat] },
+                    properties: {
+                        route_id: row.route_id,
+                        vehicle: row.vehicle_type,
+                        students: row.student_count,
+                        distance: row.dist_km,
+                        util: row.utilization,
+                        color: colorMap[row.vehicle_type] || '#6366f1'
+                    }
+                }));
+
+                map.addSource('routes', {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features }
+                });
+
+                map.addLayer({
+                    id: 'routes-points',
+                    type: 'circle',
+                    source: 'routes',
+                    paint: {
+                        'circle-radius': 4,
+                        'circle-color': ['get', 'color'],
+                        'circle-opacity': 0.7,
+                        'circle-stroke-width': 1,
+                        'circle-stroke-color': '#fff'
+                    }
+                });
+
+                const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+                
+                map.on('mouseenter', 'routes-points', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    const p = e.features[0].properties;
+                    popup.setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div style="background:#1e293b;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;">
+                                <div style="font-weight:600;margin-bottom:4px;">${p.vehicle} bus</div>
+                                <div>Students: ${p.students}</div>
+                                <div>Distance: ${p.distance} km</div>
+                                <div>Utilization: ${p.util}%</div>
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+                
+                map.on('mouseleave', 'routes-points', () => {
+                    map.getCanvas().style.cursor = '';
+                    popup.remove();
+                });
+            });
+        }
+
+        async function loadLongestRoutes() {
+            const sql = `SELECT 
+                route_id, school_id, vehicle_type, student_count,
+                round(distance_m/1000, 1) as dist_km, round(duration_s/60, 0) as dur_min
+            FROM school_routes 
+            ORDER BY distance_m DESC 
+            LIMIT 5`;
+            
+            const data = await queryClickHouse(sql);
+            const container = document.getElementById('longest-routes');
+            
+            container.innerHTML = data.map((row, i) => `
+                <div class="flex items-center justify-between bg-slate-800 rounded-lg p-3">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs flex items-center justify-center font-bold">${i + 1}</span>
+                        <div>
+                            <div class="text-sm text-white font-medium">School ${row.school_id}</div>
+                            <div class="text-xs text-gray-500">${row.vehicle_type} • ${row.student_count} students</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-emerald-400 font-bold">${row.dist_km} km</div>
+                        <div class="text-xs text-gray-500">${row.dur_min} min</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadTopUtilRoutes() {
+            const sql = `SELECT 
+                route_id, school_id, vehicle_type, student_count, capacity, utilization
+            FROM school_routes 
+            WHERE utilization >= 95
+            ORDER BY utilization DESC, student_count DESC
+            LIMIT 5`;
+            
+            const data = await queryClickHouse(sql);
+            const container = document.getElementById('top-util-routes');
+            
+            container.innerHTML = data.map((row, i) => `
+                <div class="flex items-center justify-between bg-slate-800 rounded-lg p-3">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-full bg-red-500/20 text-red-400 text-xs flex items-center justify-center font-bold">${i + 1}</span>
+                        <div>
+                            <div class="text-sm text-white font-medium">School ${row.school_id}</div>
+                            <div class="text-xs text-gray-500">${row.vehicle_type} • ${row.student_count}/${row.capacity} seats</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-red-400 font-bold">${row.utilization}%</div>
+                        <div class="text-xs text-gray-500">utilization</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            const icon = document.getElementById('refreshIcon');
+            btn.disabled = true;
+            icon.classList.add('animate-spin');
+            
+            await Promise.all([
+                loadKPIs(),
+                loadVehicleStats(),
+                loadUtilizationChart(),
+                loadDistanceChart(),
+                loadDurationChart(),
+                loadStudentsChart(),
+                loadLongestRoutes(),
+                loadTopUtilRoutes()
+            ]);
+            
+            btn.disabled = false;
+            icon.classList.remove('animate-spin');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadKPIs();
+            loadVehicleStats();
+            loadUtilizationChart();
+            loadDistanceChart();
+            loadDurationChart();
+            loadStudentsChart();
+            loadMap();
+            loadLongestRoutes();
+            loadTopUtilRoutes();
+        });
+    </script>
+</body>
+</html>

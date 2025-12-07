@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Special Needs Transport</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { 
+            background-color: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 0.75rem;
+            transition: border-color 0.2s ease;
+        }
+        .card:hover { border-color: #475569; }
+        .kpi-card { 
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        #map { width: 100%; height: 400px; border-radius: 0 0 0.75rem 0.75rem; }
+        .needs-badge { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 4px; 
+            padding: 2px 10px; 
+            border-radius: 9999px; 
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background: #334155; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="p-6 min-h-screen">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-700 rounded-xl flex items-center justify-center shadow-lg shadow-violet-600/30">
+                <iconify-icon icon="solar:accessibility-bold" class="text-2xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Special Needs Transport</h1>
+                <p class="dashboard-subtitle">Accessibility & Adapted Transport Coverage</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <main class="space-y-6">
+        <!-- KPI Cards -->
+        <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="card kpi-card">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                        <iconify-icon icon="solar:users-group-rounded-bold" class="text-violet-400"></iconify-icon>
+                    </div>
+                    <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Special Needs</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpiTotal">
+                    <div class="skeleton h-8 w-20 rounded"></div>
+                </div>
+                <div class="text-xs text-slate-500">Students</div>
+            </div>
+            
+            <div class="card kpi-card">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                        <iconify-icon icon="solar:wheelchair-bold" class="text-blue-400"></iconify-icon>
+                    </div>
+                    <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Wheelchair Users</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpiWheelchair">
+                    <div class="skeleton h-8 w-20 rounded"></div>
+                </div>
+                <div class="text-xs text-slate-500">Kinetic Needs</div>
+            </div>
+            
+            <div class="card kpi-card">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                        <iconify-icon icon="solar:bus-bold" class="text-emerald-400"></iconify-icon>
+                    </div>
+                    <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Bus Eligible</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpiBusEligible">
+                    <div class="skeleton h-8 w-20 rounded"></div>
+                </div>
+                <div class="text-xs text-slate-500">% of Total</div>
+            </div>
+            
+            <div class="card kpi-card">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                        <iconify-icon icon="solar:ruler-angular-bold" class="text-amber-400"></iconify-icon>
+                    </div>
+                    <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Avg Distance</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpiAvgDist">
+                    <div class="skeleton h-8 w-20 rounded"></div>
+                </div>
+                <div class="text-xs text-slate-500">km to School</div>
+            </div>
+            
+            <div class="card kpi-card">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center">
+                        <iconify-icon icon="solar:danger-triangle-bold" class="text-rose-400"></iconify-icon>
+                    </div>
+                    <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Needing Support</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpiNeedSupport">
+                    <div class="skeleton h-8 w-20 rounded"></div>
+                </div>
+                <div class="text-xs text-slate-500">Eligible No Bus</div>
+            </div>
+        </section>
+
+        <!-- Map and Charts Row -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Map -->
+            <div class="lg:col-span-2 card flex flex-col">
+                <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-semibold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:map-point-bold" class="text-violet-400"></iconify-icon>
+                        Special Needs Students Location
+                    </h3>
+                    <div class="flex items-center gap-4 text-xs">
+                        <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>Wheelchair</span>
+                        <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 bg-violet-500 rounded-full"></span>Visual</span>
+                        <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 bg-pink-500 rounded-full"></span>Hearing</span>
+                        <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>Medical</span>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Needs Type Distribution -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                    <iconify-icon icon="solar:pie-chart-2-bold" class="text-violet-400"></iconify-icon>
+                    Needs Type Distribution
+                </h3>
+                <div class="h-[320px] relative">
+                    <canvas id="needsTypeChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analysis Charts -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- By Region -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                    <iconify-icon icon="solar:buildings-2-bold" class="text-purple-400"></iconify-icon>
+                    Students by Region
+                </h3>
+                <div class="h-[280px] relative">
+                    <canvas id="regionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Transport Mode -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                    <iconify-icon icon="solar:bus-bold" class="text-emerald-400"></iconify-icon>
+                    Current Transport Mode
+                </h3>
+                <div class="h-[280px] relative">
+                    <canvas id="transportModeChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Distance & Income Analysis -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Distance Distribution -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                    <iconify-icon icon="solar:ruler-angular-bold" class="text-blue-400"></iconify-icon>
+                    Distance to School Distribution
+                </h3>
+                <div class="h-[250px] relative">
+                    <canvas id="distanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Income Bracket -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                    <iconify-icon icon="solar:wallet-money-bold" class="text-amber-400"></iconify-icon>
+                    By Income Bracket
+                </h3>
+                <div class="h-[250px] relative">
+                    <canvas id="incomeChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Official Data Section -->
+        <section class="card p-4">
+            <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+                <iconify-icon icon="solar:document-bold" class="text-blue-400"></iconify-icon>
+                Rafed Special Education Coverage
+            </h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-medium text-slate-300 mb-3 flex items-center gap-2">
+                        <iconify-icon icon="solar:wheelchair-bold" class="text-blue-400"></iconify-icon>
+                        Kinetic Needs (Wheelchair)
+                    </h4>
+                    <div id="kineticTable" class="space-y-2 text-sm">
+                        <div class="skeleton h-10 rounded"></div>
+                        <div class="skeleton h-10 rounded"></div>
+                        <div class="skeleton h-10 rounded"></div>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-medium text-slate-300 mb-3 flex items-center gap-2">
+                        <iconify-icon icon="solar:accessibility-bold" class="text-violet-400"></iconify-icon>
+                        Non-Kinetic Needs
+                    </h4>
+                    <div id="nonKineticTable" class="space-y-2 text-sm">
+                        <div class="skeleton h-10 rounded"></div>
+                        <div class="skeleton h-10 rounded"></div>
+                        <div class="skeleton h-10 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Student List Sample -->
+        <section class="card">
+            <div class="p-4 border-b border-slate-700">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <iconify-icon icon="solar:users-group-rounded-bold" class="text-rose-400"></iconify-icon>
+                    Priority Cases
+                    <span class="text-xs text-slate-500 font-normal ml-2">(Eligible but no bus assignment)</span>
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-800/50 text-slate-300">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium">School</th>
+                            <th class="px-4 py-3 text-left font-medium">Region</th>
+                            <th class="px-4 py-3 text-center font-medium">Needs Type</th>
+                            <th class="px-4 py-3 text-right font-medium">Distance</th>
+                            <th class="px-4 py-3 text-center font-medium">Bus Eligible</th>
+                            <th class="px-4 py-3 text-center font-medium">Transport</th>
+                            <th class="px-4 py-3 text-center font-medium">Income</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTable" class="divide-y divide-slate-700">
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const CH_API = 'http://localhost:8155/?user=viewer&password=rafed_view&max_result_rows=0';
+        
+        async function query(sql) {
+            const res = await fetch(CH_API, { method: 'POST', body: sql + ' FORMAT JSON' });
+            const json = await res.json();
+            return json.data || [];
+        }
+
+        // Chart.js dark theme defaults
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = '#334155';
+
+        function getNeedsColor(type) {
+            const colors = {
+                'wheelchair': [59, 130, 246],
+                'visual': [139, 92, 246],
+                'hearing': [236, 72, 153],
+                'medical_monitor': [245, 158, 11],
+                'mobility': [34, 197, 94],
+                'cognitive': [168, 85, 247]
+            };
+            return colors[type] || [107, 114, 128];
+        }
+
+        function getNeedsBadge(type) {
+            const badges = {
+                'wheelchair': { bg: 'bg-blue-500/20', text: 'text-blue-300' },
+                'visual': { bg: 'bg-violet-500/20', text: 'text-violet-300' },
+                'hearing': { bg: 'bg-pink-500/20', text: 'text-pink-300' },
+                'medical_monitor': { bg: 'bg-amber-500/20', text: 'text-amber-300' },
+                'mobility': { bg: 'bg-emerald-500/20', text: 'text-emerald-300' },
+                'cognitive': { bg: 'bg-purple-500/20', text: 'text-purple-300' }
+            };
+            const b = badges[type] || { bg: 'bg-slate-500/20', text: 'text-slate-300' };
+            return `<span class="needs-badge ${b.bg} ${b.text}">${type || 'other'}</span>`;
+        }
+
+        async function loadDashboard() {
+            // Load special needs students (no LIMIT - get all data)
+            const students = await query(`
+                SELECT student_id, school_name, region, county, special_needs_type, 
+                       distance_to_school_m, bus_eligible, transport_mode, income_bracket, lat, lon
+                FROM vw_special_needs_students
+                WHERE lat IS NOT NULL AND lon IS NOT NULL
+            `);
+
+            if (!students.length) {
+                console.log('No special needs student data found');
+                return;
+            }
+
+            // Calculate KPIs
+            const total = students.length;
+            const wheelchair = students.filter(s => s.special_needs_type === 'wheelchair').length;
+            const busEligible = students.filter(s => s.bus_eligible === 1 || s.bus_eligible === '1').length;
+            const avgDist = students.reduce((s, r) => s + parseFloat(r.distance_to_school_m || 0), 0) / total / 1000;
+            const needSupport = students.filter(s => (s.bus_eligible === 1 || s.bus_eligible === '1') && s.transport_mode === 'other').length;
+
+            document.getElementById('kpiTotal').textContent = total.toLocaleString();
+            document.getElementById('kpiWheelchair').textContent = wheelchair.toLocaleString();
+            document.getElementById('kpiBusEligible').textContent = ((busEligible / total) * 100).toFixed(1) + '%';
+            document.getElementById('kpiAvgDist').textContent = avgDist.toFixed(1);
+            document.getElementById('kpiNeedSupport').textContent = needSupport.toLocaleString();
+
+            // Needs Type Distribution
+            const needsCount = {};
+            students.forEach(s => {
+                const type = s.special_needs_type || 'other';
+                needsCount[type] = (needsCount[type] || 0) + 1;
+            });
+            
+            new Chart(document.getElementById('needsTypeChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(needsCount),
+                    datasets: [{
+                        data: Object.values(needsCount),
+                        backgroundColor: Object.keys(needsCount).map(t => {
+                            const c = getNeedsColor(t);
+                            return `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.8)`;
+                        }),
+                        borderColor: '#1e293b',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            position: 'right', 
+                            labels: { boxWidth: 12, padding: 15, color: '#94a3b8' } 
+                        } 
+                    }
+                }
+            });
+
+            // By Region
+            const regionCount = {};
+            students.forEach(s => {
+                const r = s.region || 'Unknown';
+                regionCount[r] = (regionCount[r] || 0) + 1;
+            });
+            const regionSorted = Object.entries(regionCount).sort((a, b) => b[1] - a[1]);
+
+            new Chart(document.getElementById('regionChart'), {
+                type: 'bar',
+                data: {
+                    labels: regionSorted.slice(0, 10).map(r => r[0]),
+                    datasets: [{
+                        label: 'Students',
+                        data: regionSorted.slice(0, 10).map(r => r[1]),
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#334155' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // Transport Mode
+            const modeCount = {};
+            students.forEach(s => {
+                const m = s.transport_mode || 'unknown';
+                modeCount[m] = (modeCount[m] || 0) + 1;
+            });
+
+            new Chart(document.getElementById('transportModeChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(modeCount).map(m => m === 'bus' ? 'Bus' : m === 'private' ? 'Private' : 'Other'),
+                    datasets: [{
+                        data: Object.values(modeCount),
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+                        borderColor: '#1e293b',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            position: 'bottom',
+                            labels: { padding: 20, color: '#94a3b8' }
+                        } 
+                    }
+                }
+            });
+
+            // Distance Distribution
+            const distBuckets = { '<1km': 0, '1-3km': 0, '3-5km': 0, '5-10km': 0, '>10km': 0 };
+            students.forEach(s => {
+                const d = parseFloat(s.distance_to_school_m || 0) / 1000;
+                if (d < 1) distBuckets['<1km']++;
+                else if (d < 3) distBuckets['1-3km']++;
+                else if (d < 5) distBuckets['3-5km']++;
+                else if (d < 10) distBuckets['5-10km']++;
+                else distBuckets['>10km']++;
+            });
+
+            new Chart(document.getElementById('distanceChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(distBuckets),
+                    datasets: [{
+                        label: 'Students',
+                        data: Object.values(distBuckets),
+                        backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            // Income Bracket
+            const incomeCount = {};
+            students.forEach(s => {
+                const i = s.income_bracket || 'unknown';
+                incomeCount[i] = (incomeCount[i] || 0) + 1;
+            });
+
+            new Chart(document.getElementById('incomeChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(incomeCount),
+                    datasets: [{
+                        label: 'Students',
+                        data: Object.values(incomeCount),
+                        backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            // Load official Rafed special ed data
+            const kineticData = await query(`SELECT * FROM support_data_rafed_special_ed_beneficiaries_kinetic LIMIT 5`);
+            const nonKineticData = await query(`SELECT * FROM support_data_rafed_special_ed_beneficiaries_non_kinetic LIMIT 5`);
+
+            if (kineticData.length) {
+                document.getElementById('kineticTable').innerHTML = kineticData.map(r => `
+                    <div class="flex justify-between items-center p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                        <span class="text-slate-300">${r.region || 'Region'}</span>
+                        <span class="font-mono font-semibold text-blue-400">${parseInt(r.students_accommodated || r.beneficiaries || 0).toLocaleString()}</span>
+                    </div>
+                `).join('');
+            }
+
+            if (nonKineticData.length) {
+                document.getElementById('nonKineticTable').innerHTML = nonKineticData.map(r => `
+                    <div class="flex justify-between items-center p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg">
+                        <span class="text-slate-300">${r.region || 'Region'}</span>
+                        <span class="font-mono font-semibold text-violet-400">${parseInt(r.students_accommodated || r.beneficiaries || 0).toLocaleString()}</span>
+                    </div>
+                `).join('');
+            }
+
+            // Student Table - Priority cases (eligible but no bus)
+            const priorityCases = students
+                .filter(s => (s.bus_eligible === 1 || s.bus_eligible === '1') && s.transport_mode !== 'bus')
+                .sort((a, b) => parseFloat(b.distance_to_school_m) - parseFloat(a.distance_to_school_m))
+                .slice(0, 20);
+
+            document.getElementById('studentTable').innerHTML = priorityCases.map(s => `
+                <tr class="hover:bg-slate-800/50 transition-colors">
+                    <td class="px-4 py-3 text-xs text-slate-300">${s.school_name || 'N/A'}</td>
+                    <td class="px-4 py-3 text-slate-300">${s.region}</td>
+                    <td class="px-4 py-3 text-center">${getNeedsBadge(s.special_needs_type)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-300">${(parseFloat(s.distance_to_school_m) / 1000).toFixed(1)} km</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-medium ${s.bus_eligible === 1 || s.bus_eligible === '1' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}">
+                            ${s.bus_eligible === 1 || s.bus_eligible === '1' ? 'Yes' : 'No'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-medium ${s.transport_mode === 'bus' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}">
+                            ${s.transport_mode}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs bg-slate-500/20 text-slate-400">${s.income_bracket}</span>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Initialize Map (dark theme)
+            window.mapboxgl = maplibregl;
+            const map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                center: [45.0, 24.0],
+                zoom: 5
+            });
+
+            map.on('load', () => {
+                // Show all data points on map
+                const mapData = students.map(s => ({
+                    position: [parseFloat(s.lon), parseFloat(s.lat)],
+                    needsType: s.special_needs_type,
+                    eligible: s.bus_eligible === 1 || s.bus_eligible === '1'
+                }));
+                
+                const deckOverlay = new deck.MapboxLayer({
+                    id: 'special-needs-layer',
+                    type: deck.ScatterplotLayer,
+                    data: mapData,
+                    getPosition: d => d.position,
+                    getRadius: 1500,
+                    getFillColor: d => [...getNeedsColor(d.needsType), d.eligible ? 200 : 100],
+                    pickable: true,
+                    updateTriggers: {
+                        getFillColor: [mapData.length]
+                    }
+                });
+                map.addLayer(deckOverlay);
+                
+                console.log(`Map loaded with ${mapData.length} points`);
+            });
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

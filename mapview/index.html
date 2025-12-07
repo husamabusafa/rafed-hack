@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رافد - خريطة المدارس | Rafed School Map</title>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'tajawal': ['Tajawal', 'sans-serif'],
+                    },
+                    colors: {
+                        'rafed': {
+                            'primary': '#1a73e8',
+                            'primary-dark': '#1557b0',
+                            'secondary': '#34a853',
+                            'secondary-dark': '#2d8e47',
+                            'danger': '#ea4335',
+                            'warning': '#fbbc04',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 0; }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        
+        /* Shadcn-like Toggle Switch */
+        .toggle-checkbox { opacity: 0; position: absolute; width: 0; height: 0; }
+        .toggle-slot {
+            position: relative;
+            height: 20px;
+            width: 36px;
+            background: #e4e4e7;
+            border-radius: 10px;
+            transition: background-color .2s;
+            cursor: pointer;
+        }
+        .toggle-checkbox:checked + .toggle-slot { background-color: #1a73e8; }
+        .toggle-button {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform .2s;
+        }
+        .toggle-checkbox:checked + .toggle-slot .toggle-button { transform: translateX(16px); }
+        
+        /* Dark mode toggle styles */
+        .dark .toggle-slot { background-color: #3f3f46; }
+        .dark .toggle-checkbox:checked + .toggle-slot { background-color: #1a73e8; }
+        
+        /* Sidebar slide animation */
+        #sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #sidebar.active { transform: translateX(0); }
+        
+        /* Analytics drawer */
+        #analytics-drawer {
+            transform: translateY(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #analytics-drawer.active { transform: translateY(0); }
+        
+        /* Loading spinner */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(26, 115, 232, 0.2);
+            border-top-color: #1a73e8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Skeleton loading */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        .dark .skeleton {
+            background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+            background-size: 200% 100%;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        
+        /* MapLibre Controls */
+        .maplibregl-ctrl-group { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .maplibregl-ctrl button { width: 36px; height: 36px; }
+        
+        /* Popup styling */
+        .maplibregl-popup-content {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-family: 'Tajawal', sans-serif;
+            direction: rtl;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+        }
+        
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+        .dark .custom-scrollbar::-webkit-scrollbar-track { background: #374151; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #6b7280; }
+        
+        /* Card hover effects */
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+        
+        /* Animated number */
+        .animate-count { transition: all 0.5s ease-out; }
+        
+        /* Quick stats pill */
+        .stat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .stat-pill:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body class="font-tajawal">
+    <!-- Loading Overlay -->
+    <div id="loading" class="fixed inset-0 bg-white/95 dark:bg-gray-900/95 flex flex-col items-center justify-center z-[1000] transition-opacity duration-500">
+        <div class="spinner"></div>
+        <div class="mt-4 text-gray-600 dark:text-gray-300 text-lg flex items-center gap-2">
+            <iconify-icon icon="eos-icons:loading" class="text-2xl text-rafed-primary"></iconify-icon>
+            جاري تحميل الخريطة...
+        </div>
+    </div>
+    
+    <!-- Header -->
+    <header id="header" class="absolute top-0 left-0 right-0 h-14 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-10">
+        <div class="flex items-center gap-3">
+            <!-- Dashboard Link -->
+            <a href="dashboard.html" class="w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center hover:bg-rafed-primary/10 dark:hover:bg-rafed-primary/20 transition-colors" title="لوحة التحكم">
+                <iconify-icon icon="mdi:view-dashboard" class="text-xl text-gray-600 dark:text-gray-400 hover:text-rafed-primary"></iconify-icon>
+            </a>
+            <div class="w-9 h-9 bg-rafed-primary/10 rounded-lg flex items-center justify-center">
+                <iconify-icon icon="mdi:school" class="text-xl text-rafed-primary"></iconify-icon>
+            </div>
+            <div class="hidden sm:block">
+                <h1 class="text-base font-bold text-gray-900 dark:text-white leading-tight">رافد</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400 -mt-0.5">خريطة المدارس</p>
+            </div>
+        </div>
+        
+            <!-- Live Stats Pills -->
+        <div class="hidden md:flex items-center gap-2">
+            <div class="stat-pill bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                <iconify-icon icon="mdi:account-school" class="text-base"></iconify-icon>
+                <span id="header-beneficiaries" class="skeleton w-12 h-4 rounded">-</span>
+            </div>
+            <div class="stat-pill bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                <iconify-icon icon="mdi:bus-school" class="text-base"></iconify-icon>
+                <span id="header-accommodated" class="skeleton w-14 h-4 rounded">-</span>
+            </div>
+            <div class="stat-pill bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                <iconify-icon icon="mdi:document" class="text-base"></iconify-icon>
+                <span id="header-contracts" class="skeleton w-12 h-4 rounded">-</span>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <!-- Search -->
+            <div class="search-container relative">
+                <div class="relative">
+                    <input type="text" id="search-input" 
+                        placeholder="ابحث عن مدرسة..." 
+                        class="w-40 sm:w-56 px-3 py-2 pl-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rafed-primary/30 focus:border-rafed-primary transition-all">
+                    <iconify-icon icon="mdi:magnify" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></iconify-icon>
+                </div>
+                <div id="search-results" class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl max-h-80 overflow-y-auto hidden z-50"></div>
+            </div>
+            
+            <!-- Analytics Toggle -->
+            <button id="analytics-toggle" title="التحليلات" 
+                class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition-all">
+                <iconify-icon icon="mdi:chart-areaspline" class="text-lg"></iconify-icon>
+            </button>
+            
+            <!-- Dark Mode Toggle -->
+            <button id="dark-mode-toggle" title="الوضع الليلي" 
+                class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition-all">
+                <iconify-icon icon="mdi:weather-night" class="text-lg" id="dark-mode-icon"></iconify-icon>
+            </button>
+            
+            <!-- Location -->
+            <button id="location-toggle" title="موقعي" 
+                class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition-all">
+                <iconify-icon icon="mdi:crosshairs-gps" class="text-lg"></iconify-icon>
+            </button>
+        </div>
+    </header>
+    
+    <!-- Layers Panel -->
+    <div id="control-panel" class="absolute top-[70px] right-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg z-[5] w-56 overflow-hidden">
+        <div class="panel-header flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 cursor-pointer">
+            <div class="flex items-center gap-2">
+                <iconify-icon icon="mdi:layers-triple" class="text-lg text-rafed-primary"></iconify-icon>
+                <span class="font-semibold text-sm text-gray-900 dark:text-white">الطبقات</span>
+            </div>
+            <iconify-icon icon="mdi:chevron-down" class="text-lg text-gray-400 toggle-btn transition-transform"></iconify-icon>
+        </div>
+        <div class="panel-content max-h-80 overflow-y-auto custom-scrollbar" id="menu">
+            <div class="flex items-center justify-center py-6 text-gray-400">
+                <iconify-icon icon="eos-icons:loading" class="text-2xl"></iconify-icon>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Panel -->
+    <div id="stats-panel" class="absolute bottom-6 right-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg z-[5] p-3 w-64 hidden lg:block">
+        <div class="flex items-center gap-2 font-semibold text-gray-800 dark:text-white mb-3 pb-2 border-b border-gray-100 dark:border-gray-800">
+            <iconify-icon icon="mdi:chart-box" class="text-lg text-rafed-primary"></iconify-icon>
+            <span class="text-sm">إحصائيات العرض</span>
+        </div>
+        
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div class="text-xl font-bold text-blue-600 dark:text-blue-400" id="total-students">-</div>
+                <div class="text-[10px] text-blue-600/70 dark:text-blue-400/70 flex items-center justify-center gap-1">
+                    <iconify-icon icon="mdi:account" class="text-xs"></iconify-icon>
+                    طالب
+                </div>
+            </div>
+            <div class="text-center p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400" id="total-schools">-</div>
+                <div class="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 flex items-center justify-center gap-1">
+                    <iconify-icon icon="mdi:school" class="text-xs"></iconify-icon>
+                    مدرسة
+                </div>
+            </div>
+            <div class="text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <div class="text-xl font-bold text-amber-600 dark:text-amber-400" id="total-routes">-</div>
+                <div class="text-[10px] text-amber-600/70 dark:text-amber-400/70 flex items-center justify-center gap-1">
+                    <iconify-icon icon="mdi:routes" class="text-xs"></iconify-icon>
+                    مسار
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Info -->
+        <div class="space-y-1.5 pt-2 border-t border-gray-100 dark:border-gray-800">
+            <div class="flex justify-between items-center text-xs">
+                <span class="text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                    <iconify-icon icon="mdi:magnify-plus" class="text-sm"></iconify-icon>
+                    التكبير
+                </span>
+                <span class="font-bold text-gray-700 dark:text-gray-300" id="zoom-level">-</span>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+                <span class="text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                    <iconify-icon icon="mdi:map-marker" class="text-sm"></iconify-icon>
+                    الإحداثيات
+                </span>
+                <span class="font-mono text-[10px] text-gray-500 dark:text-gray-400" id="coords">-</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Legend -->
+    <div id="legend" class="absolute bottom-6 left-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg z-[5] p-3 min-w-[160px] hidden lg:block">
+        <div class="flex items-center gap-2 font-semibold text-gray-800 dark:text-white mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+            <iconify-icon icon="mdi:palette" class="text-lg text-rafed-primary"></iconify-icon>
+            <span class="text-sm">الدليل</span>
+        </div>
+        <div class="space-y-2 text-xs">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-red-400 ring-1 ring-white shadow"></div>
+                <span class="text-gray-600 dark:text-gray-300">المدارس</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-pink-500 ring-1 ring-white shadow"></div>
+                <span class="text-gray-600 dark:text-gray-300">طالبات</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-blue-500 ring-1 ring-white shadow"></div>
+                <span class="text-gray-600 dark:text-gray-300">طلاب</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-2.5 h-1 rounded-full bg-indigo-500"></div>
+                <span class="text-gray-600 dark:text-gray-300">مسارات</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analytics Drawer -->
+    <div id="analytics-drawer" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl border-t border-gray-200 dark:border-gray-800 shadow-2xl z-[20] max-h-[70vh] overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-2">
+                <iconify-icon icon="mdi:chart-areaspline" class="text-xl text-rafed-primary"></iconify-icon>
+                <span class="font-bold text-gray-900 dark:text-white">التحليلات والتقارير</span>
+            </div>
+            <button id="close-analytics" class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <iconify-icon icon="mdi:close" class="text-lg text-gray-600 dark:text-gray-400"></iconify-icon>
+            </button>
+        </div>
+        <div class="p-4 overflow-y-auto custom-scrollbar" style="max-height: calc(70vh - 60px);">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <!-- Distance Analysis -->
+                <a href="distance_analysis_map.html" class="card-hover block p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center mb-3">
+                        <iconify-icon icon="mdi:map-marker-distance" class="text-2xl text-blue-600 dark:text-blue-400"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-sm text-gray-900 dark:text-white mb-1">المسافات</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400">تحليل مسافات الطلاب للمدارس</p>
+                </a>
+                
+                <!-- Route Utilization -->
+                <a href="route_utilization_map.html" class="card-hover block p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                    <div class="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center mb-3">
+                        <iconify-icon icon="mdi:routes" class="text-2xl text-emerald-600 dark:text-emerald-400"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-sm text-gray-900 dark:text-white mb-1">المسارات</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400">كفاءة استخدام خطوط النقل</p>
+                </a>
+                
+                <!-- Regional Demand -->
+                <a href="regional_demand_map.html" class="card-hover block p-4 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-xl border border-purple-200 dark:border-purple-800">
+                    <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center mb-3">
+                        <iconify-icon icon="mdi:map-marker-multiple" class="text-2xl text-purple-600 dark:text-purple-400"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-sm text-gray-900 dark:text-white mb-1">الطلب الإقليمي</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400">توزيع السكان والطلب</p>
+                </a>
+                
+                <!-- Special Needs -->
+                <a href="special_needs_map.html" class="card-hover block p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/30 rounded-xl border border-amber-200 dark:border-amber-800">
+                    <div class="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center mb-3">
+                        <iconify-icon icon="mdi:wheelchair-accessibility" class="text-2xl text-amber-600 dark:text-amber-400"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-sm text-gray-900 dark:text-white mb-1">ذوي الاحتياجات</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400">خريطة الوصول والدعم</p>
+                </a>
+                
+                <!-- Income Analysis -->
+                <a href="income_transport_map.html" class="card-hover block p-4 bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/30 dark:to-rose-800/30 rounded-xl border border-rose-200 dark:border-rose-800">
+                    <div class="w-10 h-10 bg-rose-500/20 rounded-lg flex items-center justify-center mb-3">
+                        <iconify-icon icon="mdi:currency-usd" class="text-2xl text-rose-600 dark:text-rose-400"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-sm text-gray-900 dark:text-white mb-1">الدخل والنقل</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400">علاقة الدخل بوسائل النقل</p>
+                </a>
+            </div>
+            
+            <!-- Live Stats from ClickHouse -->
+            <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                        <iconify-icon icon="mdi:database" class="text-rafed-primary"></iconify-icon>
+                        إحصائيات قاعدة البيانات
+                    </h4>
+                    <button id="refresh-stats" class="text-xs text-rafed-primary hover:underline flex items-center gap-1">
+                        <iconify-icon icon="mdi:refresh" class="text-sm refresh-icon"></iconify-icon>
+                        تحديث
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900 dark:text-white" id="db-beneficiaries">
+                            <span class="skeleton inline-block w-16 h-6 rounded"></span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400">المشمولون (تعليم عام)</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900 dark:text-white" id="db-accommodated">
+                            <span class="skeleton inline-block w-14 h-6 rounded"></span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400">المسكنون</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900 dark:text-white" id="db-contracts">
+                            <span class="skeleton inline-block w-14 h-6 rounded"></span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400">العقود</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400" id="db-coverage">
+                            <span class="skeleton inline-block w-10 h-6 rounded"></span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400">نسبة التغطية</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div id="sidebar" class="absolute top-14 left-0 bottom-0 w-full sm:w-96 bg-white dark:bg-gray-900 shadow-xl border-r border-gray-200 dark:border-gray-800 z-[8] overflow-y-auto custom-scrollbar">
+        <div class="sticky top-0 z-10 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <button class="sidebar-close absolute top-3 left-3 w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center transition-all">
+                <iconify-icon icon="mdi:close" class="text-lg"></iconify-icon>
+            </button>
+            <div class="flex items-center gap-3 pr-2">
+                <div class="w-10 h-10 bg-rafed-primary/10 rounded-lg flex items-center justify-center">
+                    <iconify-icon icon="mdi:school" class="text-xl text-rafed-primary"></iconify-icon>
+                </div>
+                <div>
+                    <h2 id="sidebar-title" class="text-base font-bold text-gray-900 dark:text-white">تفاصيل المدرسة</h2>
+                    <p id="sidebar-subtitle" class="text-xs text-gray-500 dark:text-gray-400"></p>
+                </div>
+            </div>
+        </div>
+        <div id="sidebar-content" class="p-4"></div>
+    </div>
+    
+    <!-- Map Container -->
+    <div id="map"></div>
+    
+    <script>
+        // ClickHouse Configuration
+        const CLICKHOUSE_ENDPOINTS = ['http://localhost:8155', 'http://localhost:8123'];
+        const CLICKHOUSE_USER = 'viewer';
+        const CLICKHOUSE_PASS = 'rafed_view';
+        let clickhouseResolvedEndpoint = null;
+        let clickhouseUnavailable = localStorage.getItem('clickhouse_disabled') === 'true';
+
+        function markClickhouseUnavailable() {
+            clickhouseUnavailable = true;
+            localStorage.setItem('clickhouse_disabled', 'true');
+        }
+
+        function setStatsUnavailable() {
+            ['db-beneficiaries', 'db-accommodated', 'db-contracts', 'db-coverage'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '-';
+            });
+            ['header-beneficiaries', 'header-accommodated', 'header-contracts'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.textContent = 'N/A';
+                    el.classList.remove('skeleton');
+                }
+            });
+        }
+        if (clickhouseUnavailable) setStatsUnavailable();
+        
+        // Try available ClickHouse endpoints; stop retrying after we prove none are reachable
+        async function queryClickHouse(sql) {
+            if (clickhouseUnavailable) throw new Error('ClickHouse unavailable');
+            
+            const endpoints = clickhouseResolvedEndpoint ? [clickhouseResolvedEndpoint] : CLICKHOUSE_ENDPOINTS;
+            let lastError;
+            
+            for (const base of endpoints) {
+                try {
+                    const url = `${base}/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASS}&max_result_rows=0&result_overflow_mode=throw`;
+                    const payload = `${sql.trim()}\nFORMAT JSON`;
+                    const response = await fetch(url, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+                        body: payload 
+                    });
+                    if (!response.ok) throw new Error('ClickHouse query failed: ' + response.status);
+                    
+                    clickhouseResolvedEndpoint = base; // stick to the first working endpoint
+                    return response.json();
+                } catch (err) {
+                    lastError = err;
+                    continue;
+                }
+            }
+            
+            clickhouseUnavailable = true;
+            markClickhouseUnavailable();
+            throw lastError || new Error('ClickHouse request failed');
+        }
+        
+        // Format number with animation
+        function animateNumber(element, target, suffix = '') {
+            const duration = 1000;
+            const start = 0;
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.floor(start + (target - start) * easeOut);
+                element.textContent = current.toLocaleString('en-US') + suffix;
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+        
+        // Load ClickHouse Stats
+        async function loadClickHouseStats() {
+            if (clickhouseUnavailable) {
+                setStatsUnavailable();
+                return;
+            }
+
+            try {
+                const statsQuery = `
+                    SELECT 
+                        count(*) AS beneficiaries,
+                        (SELECT count(*) FROM default.support_data_rafed_general_ed_accommodated) AS accommodated,
+                        (SELECT count(DISTINCT contract_number) FROM default.support_data_rafed_general_ed_beneficiaries) AS contracts
+                    FROM default.support_data_rafed_general_ed_beneficiaries
+                `;
+                const result = await queryClickHouse(statsQuery);
+                const row = result?.data?.[0] || {};
+                const beneficiaries = row.beneficiaries || 0;
+                const accommodated = row.accommodated || 0;
+                const contracts = row.contracts || 0;
+                const coverage = beneficiaries ? Math.round((accommodated * 1000) / beneficiaries) / 10 : 0;
+                
+                // Update drawer stats
+                animateNumber(document.getElementById('db-beneficiaries'), beneficiaries);
+                animateNumber(document.getElementById('db-accommodated'), accommodated);
+                animateNumber(document.getElementById('db-contracts'), contracts);
+                document.getElementById('db-coverage').textContent = `${coverage.toFixed(1)}%`;
+                
+                // Update header stats
+                const headerBeneficiaries = document.getElementById('header-beneficiaries');
+                const headerAccommodated = document.getElementById('header-accommodated');
+                const headerContracts = document.getElementById('header-contracts');
+                
+                headerBeneficiaries.textContent = beneficiaries.toLocaleString();
+                headerBeneficiaries.classList.remove('skeleton');
+                headerAccommodated.textContent = accommodated.toLocaleString();
+                headerAccommodated.classList.remove('skeleton');
+                headerContracts.textContent = contracts.toLocaleString();
+                headerContracts.classList.remove('skeleton');
+            
+            } catch (error) {
+                console.error('ClickHouse error:', error);
+                markClickhouseUnavailable();
+                setStatsUnavailable();
+            }
+        }
+        
+        // Set the RTL text plugin
+        maplibregl.setRTLTextPlugin(
+            'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js',
+            null, true
+        );
+
+        // Map style based on dark mode
+        const isDarkMode = localStorage.getItem('darkMode') === 'true';
+        const getMapStyle = (dark) => (dark ? 'style-dark.json' : 'style.json') + '?v=' + Date.now() + Math.random();
+
+        // Initialize map - KSA Center View
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: getMapStyle(isDarkMode),
+            center: [45.0, 24.5], // KSA center
+            zoom: 6,
+            maxZoom: 18,
+            minZoom: 4
+        });
+
+        // Add map controls
+        map.addControl(new maplibregl.NavigationControl(), 'top-left');
+        map.addControl(new maplibregl.ScaleControl({ maxWidth: 200, unit: 'metric' }), 'bottom-left');
+        map.addControl(new maplibregl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true
+        }), 'top-left');
+
+        // Toggleable layers
+        const toggleableLayers = [
+            { name: 'المدارس', id: 'schools', layers: ['schools', 'schools_label'], color: '#ff6b6b', icon: 'mdi:school' },
+            { name: 'الطلاب', id: 'students', layers: ['students'], color: '#4caf50', icon: 'mdi:account-school' },
+            { name: 'مسارات المدارس', id: 'school_routes', layers: ['school_routes'], color: '#6366f1', icon: 'mdi:routes', defaultOff: true },
+            { name: 'نطاق 1 كم', id: 'iso_1km', layers: ['school_ors_isochrones_1km'], color: '#10b981', icon: 'mdi:map-marker-distance' },
+            { name: 'نطاق 3 كم', id: 'iso_3km', layers: ['school_ors_isochrones_3km'], color: '#f59e0b', icon: 'mdi:map-marker-distance' },
+            { name: 'نطاق 5 كم', id: 'iso_5km', layers: ['school_ors_isochrones_5km'], color: '#f43f5e', icon: 'mdi:map-marker-distance' },
+            { name: 'المباني', id: 'buildings', layers: ['buildings'], color: '#aaa', icon: 'mdi:office-building' },
+            { name: 'الطرق', id: 'roads', layers: ['transportation_casing', 'transportation_inner'], color: '#fcd6a4', icon: 'mdi:road-variant' },
+            { name: 'حدود الأحياء', id: 'boundaries', layers: ['division_area_polygon', 'division_area_polygon_label'], color: '#633ea5', icon: 'mdi:map-marker-radius' },
+            { name: 'استخدام الأراضي', id: 'landuse', layers: ['land_use_polygon', 'land_use_polygon_label'], color: '#a8dba8', icon: 'mdi:tree' }
+        ];
+
+        // Property translations
+        const propTranslations = {
+            'school_nam': 'اسم المدرسة',
+            'school_code': 'رمز المدرسة',
+            'school_type': 'نوع المدرسة',
+            'education_level': 'المرحلة التعليمية',
+            'governorate': 'المحافظة',
+            'region': 'المنطقة',
+            'district': 'الحي',
+            'address': 'العنوان',
+            'capacity': 'السعة',
+            'student_count': 'عدد الطلاب',
+            'gender': 'الجنس'
+        };
+        
+        const studentPropTranslations = {
+            'student_id': 'رقم الطالب',
+            'gender': 'الجنس',
+            'age': 'العمر',
+            'grade': 'الصف',
+            'school_id': 'رقم المدرسة',
+            'school_nam': 'اسم المدرسة',
+            'transport_mode': 'وسيلة النقل',
+            'bus_elig': 'مؤهل للحافلة',
+            'route_distance_m': 'مسافة الرحلة',
+            'route_duration_s': 'مدة الرحلة'
+        };
+
+        const menu = document.getElementById('menu');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarContent = document.getElementById('sidebar-content');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const sidebarSubtitle = document.getElementById('sidebar-subtitle');
+        const closeSidebarBtn = document.querySelector('.sidebar-close');
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+        const loading = document.getElementById('loading');
+        const analyticsDrawer = document.getElementById('analytics-drawer');
+
+        let allSchools = [];
+        const formatNum = (n) => n.toLocaleString('en-US');
+        
+        // Update counts from vector tiles
+        function updateVectorTileCounts() {
+            if (!map.isStyleLoaded()) return;
+            
+            const studentFeatures = map.queryRenderedFeatures({ layers: ['students'] });
+            const schoolFeatures = map.queryRenderedFeatures({ layers: ['schools'] });
+            
+            document.getElementById('total-students').textContent = formatNum(studentFeatures.length);
+            document.getElementById('total-schools').textContent = formatNum(schoolFeatures.length);
+            
+            const schoolsWithStudents = new Set();
+            studentFeatures.forEach(f => {
+                if (f.properties.school_id) schoolsWithStudents.add(f.properties.school_id);
+            });
+            document.getElementById('total-routes').textContent = formatNum(schoolsWithStudents.size);
+        }
+
+        // Close sidebar
+        closeSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            clearRoute();
+            clearSchoolRoutesHighlight();
+        });
+        
+        function clearSchoolRoutesHighlight() {
+            if (map.getLayer('school-routes-highlight')) {
+                map.setFilter('school-routes-highlight', ['==', ['get', 'school_id'], -99999]);
+            }
+        }
+
+        // Dark mode toggle
+        document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('dark-mode-icon').setAttribute('icon', isDark ? 'mdi:weather-sunny' : 'mdi:weather-night');
+            localStorage.setItem('darkMode', isDark);
+            
+            // Switch map style
+            const currentCenter = map.getCenter();
+            const currentZoom = map.getZoom();
+            map.setStyle(getMapStyle(isDark));
+            
+            // Restore view and re-add dynamic layers after style loads
+            map.once('style.load', () => {
+                map.jumpTo({ center: currentCenter, zoom: currentZoom });
+                
+                // Re-add student route source and layers
+                if (!map.getSource('student-route')) {
+                    map.addSource('student-route', {
+                        type: 'geojson',
+                        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
+                    });
+                    map.addLayer({
+                        id: 'student-route-casing',
+                        type: 'line',
+                        source: 'student-route',
+                        paint: { 'line-color': '#1e40af', 'line-width': 8, 'line-opacity': 0.4 }
+                    });
+                    map.addLayer({
+                        id: 'student-route-line',
+                        type: 'line',
+                        source: 'student-route',
+                        paint: { 'line-color': '#3b82f6', 'line-width': 4, 'line-opacity': 0.9 }
+                    });
+                }
+                
+                // Re-add school routes highlight layer
+                if (!map.getLayer('school-routes-highlight')) {
+                    map.addLayer({
+                        id: 'school-routes-highlight',
+                        type: 'line',
+                        source: 'martin_routes',
+                        'source-layer': 'school_routes',
+                        minzoom: 10,
+                        layout: { 'line-cap': 'round', 'line-join': 'round' },
+                        paint: { 'line-color': '#f97316', 'line-width': 5, 'line-opacity': 0.95 },
+                        filter: ['==', ['get', 'school_id'], -99999]
+                    });
+                }
+                
+                // Re-sync layer toggles
+                toggleableLayers.forEach(group => {
+                    const checkbox = document.getElementById(`toggle-${group.id}`);
+                    if (checkbox) {
+                        const visibility = checkbox.checked ? 'visible' : 'none';
+                        group.layers.forEach(layerId => {
+                            if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
+                        });
+                    }
+                });
+            });
+        });
+        
+        // Load dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.documentElement.classList.add('dark');
+            document.getElementById('dark-mode-icon').setAttribute('icon', 'mdi:weather-sunny');
+        }
+
+        // Analytics drawer toggle
+        document.getElementById('analytics-toggle').addEventListener('click', () => {
+            analyticsDrawer.classList.toggle('active');
+            if (analyticsDrawer.classList.contains('active')) loadClickHouseStats();
+        });
+        
+        document.getElementById('close-analytics').addEventListener('click', () => {
+            analyticsDrawer.classList.remove('active');
+        });
+        
+        document.getElementById('refresh-stats').addEventListener('click', () => {
+            const icon = document.querySelector('.refresh-icon');
+            icon.style.animation = 'spin 1s linear infinite';
+            clickhouseUnavailable = false;
+            clickhouseResolvedEndpoint = null;
+            localStorage.removeItem('clickhouse_disabled');
+            loadClickHouseStats().finally(() => {
+                setTimeout(() => icon.style.animation = '', 1000);
+            });
+        });
+
+        // Search functionality
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            if (query.length < 2) {
+                searchResults.classList.add('hidden');
+                return;
+            }
+
+            const filtered = allSchools.filter(s => 
+                s.name && s.name.toLowerCase().includes(query)
+            ).slice(0, 10);
+
+            if (filtered.length > 0) {
+                searchResults.innerHTML = filtered.map(s => {
+                    const remaining = s.capacity - s.student_count;
+                    const remainingColor = remaining > 0 ? 'text-emerald-600' : 'text-rose-600';
+                    
+                    return `
+                    <div class="search-result-item px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-lng="${s.lng}" data-lat="${s.lat}">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                <iconify-icon icon="mdi:school" class="text-lg text-rafed-primary"></iconify-icon>
+                            </div>
+                            <span class="font-medium text-gray-900 dark:text-white text-sm">${s.name}</span>
+                        </div>
+                        <div class="mr-11 text-[10px] uppercase tracking-wider font-semibold text-gray-400 flex items-center gap-2">
+                            <span class="${remainingColor}">متاح: ${remaining}</span>
+                            <span class="text-gray-300">|</span>
+                            <span class="text-indigo-500">مسجل: ${s.student_count}</span>
+                        </div>
+                    </div>
+                `}).join('');
+                searchResults.classList.remove('hidden');
+
+                searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const lng = parseFloat(item.dataset.lng);
+                        const lat = parseFloat(item.dataset.lat);
+                        map.flyTo({ center: [lng, lat], zoom: 16 });
+                        searchResults.classList.add('hidden');
+                        searchInput.value = '';
+                    });
+                });
+            } else {
+                searchResults.innerHTML = `
+                    <div class="flex items-center justify-center gap-2 px-4 py-6 text-gray-400">
+                        <iconify-icon icon="mdi:magnify-close" class="text-2xl"></iconify-icon>
+                        <span>لا توجد نتائج</span>
+                    </div>
+                `;
+                searchResults.classList.remove('hidden');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-container')) {
+                searchResults.classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('location-toggle').addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 });
+                });
+            }
+        });
+
+        function updateStats() {
+            const zoom = map.getZoom().toFixed(1);
+            const center = map.getCenter();
+            
+            document.getElementById('zoom-level').textContent = zoom;
+            document.getElementById('coords').textContent = `${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`;
+            updateVectorTileCounts();
+        }
+
+        const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+        
+        // Decode polyline
+        function decodePolyline(encoded) {
+            if (!encoded) return [];
+            const coords = [];
+            let index = 0, lat = 0, lng = 0;
+            
+            while (index < encoded.length) {
+                let b, shift = 0, result = 0;
+                do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                
+                shift = 0; result = 0;
+                do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                
+                coords.push([lng / 1e5, lat / 1e5]);
+            }
+            return coords;
+        }
+        
+        function clearRoute() {
+            if (map.getSource('student-route')) {
+                map.getSource('student-route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+            }
+        }
+        
+        function showRoute(encodedPolyline) {
+            const routeCoords = decodePolyline(encodedPolyline);
+            if (routeCoords.length === 0) return;
+            
+            if (map.getSource('student-route')) {
+                map.getSource('student-route').setData({
+                    type: 'Feature',
+                    properties: {},
+                    geometry: { type: 'LineString', coordinates: routeCoords }
+                });
+            }
+        }
+
+        // Map load
+        map.on('load', () => {
+            loading.classList.add('hidden');
+            
+            // Route source and layers
+            map.addSource('student-route', {
+                type: 'geojson',
+                data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
+            });
+            
+            map.addLayer({
+                id: 'student-route-casing',
+                type: 'line',
+                source: 'student-route',
+                paint: { 'line-color': '#1e40af', 'line-width': 8, 'line-opacity': 0.4 }
+            });
+            
+            map.addLayer({
+                id: 'student-route-line',
+                type: 'line',
+                source: 'student-route',
+                paint: { 'line-color': '#3b82f6', 'line-width': 4, 'line-opacity': 0.9 }
+            });
+            
+            // School routes highlight layer
+            map.addLayer({
+                id: 'school-routes-highlight',
+                type: 'line',
+                source: 'martin_routes',
+                'source-layer': 'school_routes',
+                minzoom: 10,
+                layout: { 'line-cap': 'round', 'line-join': 'round' },
+                paint: { 'line-color': '#f97316', 'line-width': 5, 'line-opacity': 0.95 },
+                filter: ['==', ['get', 'school_id'], -99999]
+            });
+            
+            // Generate Layer Toggles
+            menu.innerHTML = '';
+            toggleableLayers.forEach(group => {
+                const container = document.createElement('div');
+                container.className = 'layer-group';
+                const isChecked = !group.defaultOff;
+                container.innerHTML = `
+                    <label class="flex items-center justify-between py-2 px-3 cursor-pointer group hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 group-hover:text-rafed-primary group-hover:border-rafed-primary/30 transition-all">
+                                <iconify-icon icon="${group.icon}" class="text-base"></iconify-icon>
+                            </div>
+                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">${group.name}</span>
+                        </div>
+                        <div class="relative inline-block">
+                            <input type="checkbox" ${isChecked ? 'checked' : ''} id="toggle-${group.id}" class="toggle-checkbox">
+                            <div class="toggle-slot">
+                                <div class="toggle-button"></div>
+                            </div>
+                        </div>
+                    </label>
+                `;
+
+                container.querySelector('input').addEventListener('change', (e) => {
+                    const visibility = e.target.checked ? 'visible' : 'none';
+                    group.layers.forEach(layerId => {
+                        if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
+                    });
+                });
+
+                menu.appendChild(container);
+            });
+
+            // Load schools for search
+            setTimeout(() => {
+                try {
+                    const source = map.getSource('martin_overlays');
+                    if (source) {
+                        const features = map.querySourceFeatures('martin_overlays', { sourceLayer: 'schools' });
+                        allSchools = features.map(f => ({
+                            name: f.properties.school_nam,
+                            lng: f.geometry.coordinates[0],
+                            lat: f.geometry.coordinates[1],
+                            capacity: f.properties.capacity || 0,
+                            student_count: f.properties.student_count || 0
+                        })).filter(s => s.name);
+                    }
+                } catch(e) { console.log('Could not load schools for search'); }
+            }, 2000);
+
+            // School click handler
+            map.on('click', 'schools', (e) => {
+                const feature = e.features[0];
+                const props = feature.properties;
+                
+                clearRoute();
+                
+                const schoolCode = props.school_cod || props.school_code;
+                if (schoolCode && map.getLayer('school-routes-highlight')) {
+                    map.setFilter('school-routes-highlight', ['==', ['to-string', ['get', 'school_id']], String(schoolCode)]);
+                }
+                
+                document.querySelector('#sidebar .sticky').className = 'sticky top-0 z-10 px-4 py-3 bg-gradient-to-l from-rafed-primary to-rafed-primary-dark text-white';
+                document.querySelector('#sidebar .sticky iconify-icon').classList.remove('text-rafed-primary');
+                document.querySelector('#sidebar .sticky iconify-icon').classList.add('text-white');
+
+                sidebarTitle.textContent = props.school_nam || 'تفاصيل المدرسة';
+                sidebarSubtitle.textContent = props.school_code ? `رمز: ${props.school_code}` : '';
+
+                // Build sidebar content
+                let content = '<div class="space-y-4">';
+                
+                // Enrollment Card
+                const cap = props.capacity || 0;
+                const actual = props.student_count || 0;
+                const rem = cap - actual;
+                const remColor = rem > 0 ? 'text-emerald-600' : 'text-rose-600';
+                const occupancy = cap > 0 ? Math.round((actual/cap)*100) : 0;
+
+                content += `
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                        <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 class="font-semibold text-xs text-gray-900 dark:text-white flex items-center gap-2">
+                                <iconify-icon icon="mdi:chart-pie" class="text-rafed-primary"></iconify-icon>
+                                حالة التسجيل
+                            </h3>
+                        </div>
+                        <div class="p-4">
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">السعة</span>
+                                    <span class="text-lg font-bold text-gray-900 dark:text-white">${cap}</span>
+                                </div>
+                                <div class="flex flex-col gap-0.5 border-r border-gray-100 dark:border-gray-700">
+                                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">المسجلون</span>
+                                    <span class="text-lg font-bold text-indigo-600 dark:text-indigo-400">${actual}</span>
+                                </div>
+                                <div class="flex flex-col gap-0.5 border-r border-gray-100 dark:border-gray-700">
+                                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">المتاح</span>
+                                    <span class="text-lg font-bold ${remColor}">${rem}</span>
+                                </div>
+                            </div>
+                            <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                                <span class="text-[10px] text-gray-500 dark:text-gray-400">نسبة الإشغال</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="h-1.5 w-20 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-rafed-primary rounded-full" style="width: ${Math.min(100, occupancy)}%"></div>
+                                    </div>
+                                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300">${occupancy}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Details Card
+                content += `
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                        <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 class="font-semibold text-xs text-gray-900 dark:text-white flex items-center gap-2">
+                                <iconify-icon icon="mdi:information-outline" class="text-rafed-primary"></iconify-icon>
+                                التفاصيل
+                            </h3>
+                        </div>
+                        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                `;
+                
+                const excludedProps = ['capacity', 'student_count', 'school_nam', 'school_code', 'fid'];
+                for (const key in props) {
+                    if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== '' && !excludedProps.includes(key)) {
+                        const label = propTranslations[key] || key;
+                        content += `
+                            <div class="prop-row flex justify-between items-start px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <span class="prop-key text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">${label}</span>
+                                <span class="prop-val text-xs text-gray-900 dark:text-white font-medium w-2/3 text-left break-words">${props[key]}</span>
+                            </div>
+                        `;
+                    }
+                }
+                content += '</div></div>';
+
+                // Action buttons
+                content += `
+                    <div class="flex gap-2">
+                        <button class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-rafed-primary hover:bg-rafed-primary-dark text-white rounded-lg text-sm font-medium transition-colors" onclick="copySchoolInfo()">
+                            <iconify-icon icon="mdi:content-copy"></iconify-icon>
+                            نسخ
+                        </button>
+                        <button class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors" onclick="zoomToSchool(${feature.geometry.coordinates[0]}, ${feature.geometry.coordinates[1]})">
+                            <iconify-icon icon="mdi:crosshairs-gps"></iconify-icon>
+                            تكبير
+                        </button>
+                    </div>
+                `;
+                content += '</div>';
+
+                sidebarContent.innerHTML = content;
+                sidebar.classList.add('active');
+                e.originalEvent.stopPropagation();
+            });
+
+            // Student click handler
+            map.on('click', 'students', (e) => {
+                const feature = e.features[0];
+                const props = feature.properties;
+                const studentCoords = feature.geometry.coordinates;
+                
+                clearSchoolRoutesHighlight();
+                
+                const genderIcon = props.gender === 'Female' ? 'mdi:face-woman' : 'mdi:face-man';
+                const genderColor = props.gender === 'Female' ? 'from-pink-500 to-pink-600' : 'from-blue-500 to-blue-600';
+                const genderLabel = props.gender === 'Female' ? 'طالبة' : 'طالب';
+                
+                document.querySelector('#sidebar .sticky').className = `sticky top-0 z-10 px-4 py-3 bg-gradient-to-l ${genderColor} text-white`;
+                document.querySelector('#sidebar .sticky iconify-icon').setAttribute('icon', genderIcon);
+                
+                sidebarTitle.textContent = `${genderLabel} - ${props.student_id || 'بدون رقم'}`;
+                sidebarSubtitle.textContent = props.school_nam || '';
+                
+                let content = '<div class="space-y-4">';
+                
+                // Route info
+                const distanceKm = props.route_distance_m ? (props.route_distance_m / 1000).toFixed(2) : '-';
+                const durationMin = props.route_duration_s ? Math.round(props.route_duration_s / 60) : '-';
+                
+                content += `
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 shadow-sm overflow-hidden">
+                        <div class="px-4 py-2.5 border-b border-blue-100 dark:border-blue-800 bg-white/50 dark:bg-gray-800/50">
+                            <h3 class="font-semibold text-xs text-gray-900 dark:text-white flex items-center gap-2">
+                                <iconify-icon icon="mdi:map-marker-path" class="text-blue-600"></iconify-icon>
+                                معلومات الرحلة
+                            </h3>
+                        </div>
+                        <div class="p-4 grid grid-cols-2 gap-3">
+                            <div class="text-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                                <iconify-icon icon="mdi:map-marker-distance" class="text-2xl text-blue-500 mb-1"></iconify-icon>
+                                <div class="text-lg font-bold text-gray-900 dark:text-white">${distanceKm}</div>
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400">كم</div>
+                            </div>
+                            <div class="text-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                                <iconify-icon icon="mdi:clock-outline" class="text-2xl text-indigo-500 mb-1"></iconify-icon>
+                                <div class="text-lg font-bold text-gray-900 dark:text-white">${durationMin}</div>
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400">دقيقة</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Transport
+                const transportIcons = {
+                    'private_car': 'mdi:car',
+                    'school_bus': 'mdi:bus-school',
+                    'parent_dropoff': 'mdi:car-child-seat',
+                    'walk': 'mdi:walk',
+                    'other': 'mdi:help-circle'
+                };
+                const transportLabels = {
+                    'private_car': 'سيارة خاصة',
+                    'school_bus': 'حافلة مدرسية',
+                    'parent_dropoff': 'توصيل ولي الأمر',
+                    'walk': 'مشي',
+                    'other': 'أخرى'
+                };
+                
+                content += `
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                        <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 class="font-semibold text-xs text-gray-900 dark:text-white flex items-center gap-2">
+                                <iconify-icon icon="mdi:bus" class="text-amber-500"></iconify-icon>
+                                النقل
+                            </h3>
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                                    <iconify-icon icon="${transportIcons[props.transport_mode] || 'mdi:help'}" class="text-xl text-amber-600 dark:text-amber-400"></iconify-icon>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-sm text-gray-900 dark:text-white">${transportLabels[props.transport_mode] || props.transport_mode}</div>
+                                    <div class="text-[10px] text-gray-500 dark:text-gray-400">وسيلة النقل</div>
+                                </div>
+                            </div>
+                            ${props.bus_elig ? `
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500 dark:text-gray-400">مؤهل للحافلة</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${props.bus_elig === 'true' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}">
+                                    ${props.bus_elig === 'true' ? 'نعم' : 'لا'}
+                                </span>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // Details
+                content += `
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                        <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 class="font-semibold text-xs text-gray-900 dark:text-white flex items-center gap-2">
+                                <iconify-icon icon="mdi:information-outline" class="text-rafed-primary"></iconify-icon>
+                                التفاصيل
+                            </h3>
+                        </div>
+                        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                `;
+                
+                const excludedStudentProps = ['route_geom', 'route_distance_m', 'route_duration_s', 'transport_mode', 'bus_elig', 'fid', 'geom'];
+                for (const key in props) {
+                    if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== '' && !excludedStudentProps.includes(key)) {
+                        const label = studentPropTranslations[key] || key;
+                        let val = props[key];
+                        if (key === 'gender') val = props.gender === 'Female' ? 'أنثى' : 'ذكر';
+                        if (key === 'straight_distance_m') val = (val / 1000).toFixed(2) + ' كم';
+                        
+                        content += `
+                            <div class="flex justify-between items-center px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">${label}</span>
+                                <span class="text-xs text-gray-900 dark:text-white font-medium">${val}</span>
+                            </div>
+                        `;
+                    }
+                }
+                content += '</div></div></div>';
+                
+                sidebarContent.innerHTML = content;
+                sidebar.classList.add('active');
+                
+                if (props.route_geom) showRoute(props.route_geom);
+                e.originalEvent.stopPropagation();
+            });
+            
+            // Hover handlers
+            map.on('mouseenter', 'students', (e) => {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                const genderLabel = props.gender === 'Female' ? 'طالبة' : 'طالب';
+                const genderIcon = props.gender === 'Female' ? '👩‍🎓' : '👨‍🎓';
+                
+                popup.setLngLat(e.features[0].geometry.coordinates)
+                    .setHTML(`
+                        <div class="font-medium text-gray-800 dark:text-white">${genderIcon} ${genderLabel}</div>
+                        <div class="text-xs text-gray-500">${props.school_nam || ''}</div>
+                    `)
+                    .addTo(map);
+            });
+            
+            map.on('mouseleave', 'students', () => {
+                map.getCanvas().style.cursor = '';
+                popup.remove();
+            });
+
+            map.on('click', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers: ['schools', 'students'] });
+                if (!features.length) {
+                    sidebar.classList.remove('active');
+                    clearRoute();
+                    clearSchoolRoutesHighlight();
+                    document.querySelector('#sidebar .sticky').className = 'sticky top-0 z-10 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800';
+                }
+            });
+
+            map.on('mouseenter', 'schools', (e) => {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                popup.setLngLat(e.features[0].geometry.coordinates.slice())
+                    .setHTML(`
+                        <div class="flex items-center gap-2 font-semibold text-gray-800 mb-1">
+                            <iconify-icon icon="mdi:school" class="text-rafed-primary"></iconify-icon>
+                            <span>${props.school_nam || 'مدرسة'}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">${props.school_code ? 'رمز: ' + props.school_code : ''}</div>
+                    `)
+                    .addTo(map);
+            });
+
+            map.on('mouseleave', 'schools', () => {
+                map.getCanvas().style.cursor = '';
+                popup.remove();
+            });
+
+            updateStats();
+            map.on('moveend', updateStats);
+            map.on('zoomend', updateStats);
+            
+            // Initial ClickHouse load
+            loadClickHouseStats();
+        });
+
+        // Helper functions
+        window.zoomToSchool = function(lng, lat) {
+            map.flyTo({ center: [lng, lat], zoom: 17 });
+            sidebar.classList.remove('active');
+        }
+
+        window.copySchoolInfo = function() {
+            const title = sidebarTitle.textContent;
+            const rows = sidebarContent.querySelectorAll('.prop-row');
+            let text = title + '\n\n';
+            rows.forEach(row => {
+                const key = row.querySelector('.prop-key').textContent;
+                const val = row.querySelector('.prop-val').textContent;
+                text += `${key}: ${val}\n`;
+            });
+            navigator.clipboard.writeText(text).then(() => showToast('تم نسخ المعلومات!'));
+        }
+
+        // Panel collapse
+        document.querySelector('.panel-header').addEventListener('click', () => {
+            const content = document.querySelector('.panel-content');
+            const btn = document.querySelector('.toggle-btn');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                btn.setAttribute('icon', 'mdi:chevron-down');
+            } else {
+                content.classList.add('hidden');
+                btn.setAttribute('icon', 'mdi:chevron-left');
+            }
+        });
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            const iconName = type === 'success' ? 'mdi:check-circle' : 'mdi:alert-circle';
+            const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+            toast.className = `fixed bottom-20 left-1/2 -translate-x-1/2 ${bgColor} text-white px-5 py-2.5 rounded-xl shadow-xl flex items-center gap-2 z-[1001] text-sm`;
+            toast.innerHTML = `<iconify-icon icon="${iconName}" class="text-lg"></iconify-icon><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

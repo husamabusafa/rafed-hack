@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Fleet Operations</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="shared.js"></script>
+    <script>if (!window.mapboxgl) window.mapboxgl = window.maplibregl;</script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+        #map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+        .efficiency-bar { height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+        .efficiency-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-600/20">
+                <iconify-icon icon="solar:bus-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Fleet Operations</h1>
+                <p class="dashboard-subtitle">Route Efficiency, Utilization & Vehicle Analytics</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <div class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 flex items-center gap-2">
+                <iconify-icon icon="solar:clock-circle-bold" class="text-slate-400"></iconify-icon>
+                <span id="last-update">Loading...</span>
+            </div>
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Top KPIs -->
+    <div class="grid grid-cols-6 gap-4 mb-6 flex-none">
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Total Routes</h3>
+                <div class="w-8 h-8 bg-cyan-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:route-bold" class="text-cyan-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="total-routes">-</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Avg Utilization</h3>
+                <div class="w-8 h-8 bg-emerald-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:chart-bold" class="text-emerald-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="avg-util">-</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Optimal (50-100%)</h3>
+                <div class="w-8 h-8 bg-blue-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:check-circle-bold" class="text-blue-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-emerald-400" id="optimal-routes">-</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Empty (&lt;20%)</h3>
+                <div class="w-8 h-8 bg-red-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:ghost-bold" class="text-red-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-red-400" id="empty-routes">-</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Overloaded (&gt;100%)</h3>
+                <div class="w-8 h-8 bg-orange-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:danger-triangle-bold" class="text-orange-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-orange-400" id="full-routes">-</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Daily Distance</h3>
+                <div class="w-8 h-8 bg-purple-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:ruler-angular-bold" class="text-purple-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="total-dist">-</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-4 gap-6 flex-1 min-h-0">
+        
+        <!-- Map (2 cols) -->
+        <div class="col-span-2 card p-1 flex flex-col h-full">
+            <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:map-bold" class="text-cyan-500"></iconify-icon>
+                    Route Network Map
+                </h3>
+                <div class="flex gap-4 text-xs">
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Good</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-amber-500 rounded-full"></span> Low</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-red-500 rounded-full"></span> Empty</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-orange-500 rounded-full"></span> Over</span>
+                </div>
+            </div>
+            <div class="flex-1 relative rounded-b-lg overflow-hidden">
+                <div id="map-container"></div>
+            </div>
+        </div>
+
+        <!-- Charts Column -->
+        <div class="flex flex-col gap-4 h-full">
+            
+            <!-- Utilization Distribution -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:chart-2-bold" class="text-emerald-500"></iconify-icon>
+                    Utilization Distribution
+                </h3>
+                <div class="h-[160px] w-full relative">
+                    <canvas id="utilChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Distance Distribution -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:route-bold" class="text-blue-500"></iconify-icon>
+                    Route Distance Distribution
+                </h3>
+                <div class="h-[160px] w-full relative">
+                    <canvas id="distChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Vehicle Types -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:bus-bold" class="text-purple-500"></iconify-icon>
+                    Vehicle Types
+                </h3>
+                <div class="h-[160px] w-full relative">
+                    <canvas id="busChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Problem Routes List -->
+        <div class="flex flex-col gap-4 h-full">
+            
+            <!-- Efficiency Score -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:medal-ribbons-star-bold" class="text-amber-500"></iconify-icon>
+                    Fleet Efficiency Score
+                </h3>
+                <div class="text-center py-2">
+                    <div class="text-4xl font-bold text-white" id="efficiency-score">-</div>
+                    <div class="text-xs text-slate-400 mt-1">out of 100</div>
+                </div>
+                <div class="efficiency-bar mt-3">
+                    <div class="efficiency-fill bg-gradient-to-r from-emerald-500 to-cyan-500" id="efficiency-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Empty Routes -->
+            <div class="card p-4 flex-1 overflow-hidden flex flex-col">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:ghost-bold" class="text-red-500"></iconify-icon>
+                    Most Empty Routes
+                </h3>
+                <div class="flex-1 overflow-y-auto space-y-2" id="empty-list">
+                    <div class="text-center text-slate-500 text-sm p-4">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Overloaded Routes -->
+            <div class="card p-4 flex-1 overflow-hidden flex flex-col">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:danger-triangle-bold" class="text-orange-500"></iconify-icon>
+                    Most Overloaded Routes
+                </h3>
+                <div class="flex-1 overflow-y-auto space-y-2" id="overloaded-list">
+                    <div class="text-center text-slate-500 text-sm p-4">Loading...</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Helpers
+        async function query(sql) {
+            const data = await queryClickHouse(sql);
+            return data && data.length >= 0 ? { data } : null;
+        }
+        const format = (n) => Number(n).toLocaleString();
+
+        async function init() {
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            // 1. KPIs
+            const m = await query(`
+                SELECT 
+                    count() as total,
+                    avg(utilization) as u,
+                    countIf(utilization >= 0.5 AND utilization <= 1.0) as optimal,
+                    countIf(utilization < 0.2) as empty,
+                    countIf(utilization > 1.0) as full,
+                    sum(distance_m)/1000 as dist
+                FROM school_routes
+            `);
+            
+            if(m?.data[0]) {
+                const d = m.data[0];
+                document.getElementById('total-routes').innerText = format(d.total);
+                document.getElementById('avg-util').innerText = (d.u * 100).toFixed(1) + '%';
+                document.getElementById('optimal-routes').innerText = format(d.optimal);
+                document.getElementById('empty-routes').innerText = format(d.empty);
+                document.getElementById('full-routes').innerText = format(d.full);
+                document.getElementById('total-dist').innerText = format(Math.round(d.dist)) + ' km';
+                
+                // Efficiency Score: % of routes in optimal range
+                const score = Math.round((d.optimal / d.total) * 100);
+                document.getElementById('efficiency-score').innerText = score;
+                document.getElementById('efficiency-bar').style.width = score + '%';
+            }
+
+            // 2. Map
+            const routes = await query(`
+                SELECT lat, lon, utilization, route_id, student_count, distance_m 
+                FROM school_routes 
+                WHERE lat IS NOT NULL AND lon IS NOT NULL
+            `);
+
+            if(routes) {
+                const map = new maplibregl.Map({
+                    container: 'map-container',
+                    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    center: [46.7, 24.7],
+                    zoom: 10,
+                    pitch: 30
+                });
+
+                map.on('load', () => {
+                    map.addLayer(new deck.MapboxLayer({
+                        id: 'routes',
+                        type: deck.ScatterplotLayer,
+                        data: routes.data,
+                        getPosition: d => [d.lon, d.lat],
+                        getFillColor: d => {
+                            if (d.utilization > 1.0) return [249, 115, 22, 200]; // Orange - overloaded
+                            if (d.utilization < 0.2) return [239, 68, 68, 200];  // Red - empty
+                            if (d.utilization < 0.5) return [245, 158, 11, 200]; // Amber - low
+                            return [16, 185, 129, 200]; // Green - good
+                        },
+                        getRadius: d => 50 + (d.student_count * 2),
+                        radiusMinPixels: 4,
+                        radiusMaxPixels: 20,
+                        pickable: true,
+                        onClick: (info) => {
+                            if (info.object) {
+                                const r = info.object;
+                                alert(`Route: ${r.route_id.substring(0,12)}...\nStudents: ${r.student_count}\nUtilization: ${(r.utilization*100).toFixed(0)}%\nDistance: ${(r.distance_m/1000).toFixed(1)} km`);
+                            }
+                        }
+                    }));
+                });
+            }
+
+            // 3. Charts
+            // Utilization Distribution
+            const bins = await query(`
+                SELECT 
+                    countIf(utilization < 0.2) as b1,
+                    countIf(utilization BETWEEN 0.2 AND 0.5) as b2,
+                    countIf(utilization BETWEEN 0.5 AND 0.75) as b3,
+                    countIf(utilization BETWEEN 0.75 AND 1.0) as b4,
+                    countIf(utilization > 1.0) as b5
+                FROM school_routes
+            `);
+            
+            if(bins?.data[0]) {
+                const d = bins.data[0];
+                new Chart(document.getElementById('utilChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['<20%', '20-50%', '50-75%', '75-100%', '>100%'],
+                        datasets: [{
+                            data: [d.b1, d.b2, d.b3, d.b4, d.b5],
+                            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#f97316'],
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, 
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } 
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            // Distance Distribution
+            const distBins = await query(`
+                SELECT 
+                    countIf(distance_m < 5000) as d1,
+                    countIf(distance_m BETWEEN 5000 AND 10000) as d2,
+                    countIf(distance_m BETWEEN 10000 AND 20000) as d3,
+                    countIf(distance_m > 20000) as d4
+                FROM school_routes
+            `);
+            
+            if(distBins?.data[0]) {
+                const d = distBins.data[0];
+                new Chart(document.getElementById('distChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['<5km', '5-10km', '10-20km', '>20km'],
+                        datasets: [{
+                            data: [d.d1, d.d2, d.d3, d.d4],
+                            backgroundColor: ['#22c55e', '#3b82f6', '#a855f7', '#f43f5e'],
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, 
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } 
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+            
+            // Vehicle Types
+            const types = await query("SELECT vehicle_type, count() as c FROM school_routes GROUP BY vehicle_type ORDER BY c DESC");
+            if(types?.data) {
+                new Chart(document.getElementById('busChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: types.data.map(d => d.vehicle_type || 'Unknown'),
+                        datasets: [{
+                            data: types.data.map(d => d.c),
+                            backgroundColor: ['#06b6d4', '#8b5cf6', '#ec4899', '#f59e0b'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: { 
+                            legend: { 
+                                position: 'right', 
+                                labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } } 
+                            } 
+                        }
+                    }
+                });
+            }
+
+            // 4. Problem Routes Lists
+            // Empty Routes
+            const emptyRoutes = await query(`
+                SELECT route_id, utilization, student_count 
+                FROM school_routes 
+                WHERE utilization < 0.2 
+                ORDER BY utilization ASC 
+                LIMIT 8
+            `);
+            
+            const emptyList = document.getElementById('empty-list');
+            if(emptyRoutes?.data?.length) {
+                emptyList.innerHTML = emptyRoutes.data.map(r => `
+                    <div class="p-2 bg-slate-800/50 rounded border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <span class="font-mono text-xs text-slate-400">${r.route_id.substring(0,10)}...</span>
+                            <span class="text-xs text-slate-500 ml-2">${r.student_count} students</span>
+                        </div>
+                        <span class="text-xs font-bold text-red-400">${(r.utilization*100).toFixed(0)}%</span>
+                    </div>
+                `).join('');
+            } else {
+                emptyList.innerHTML = '<div class="text-center text-emerald-400 text-sm p-4">No empty routes!</div>';
+            }
+
+            // Overloaded Routes
+            const overRoutes = await query(`
+                SELECT route_id, utilization, student_count 
+                FROM school_routes 
+                WHERE utilization > 1.0 
+                ORDER BY utilization DESC 
+                LIMIT 8
+            `);
+            
+            const overList = document.getElementById('overloaded-list');
+            if(overRoutes?.data?.length) {
+                overList.innerHTML = overRoutes.data.map(r => `
+                    <div class="p-2 bg-slate-800/50 rounded border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <span class="font-mono text-xs text-slate-400">${r.route_id.substring(0,10)}...</span>
+                            <span class="text-xs text-slate-500 ml-2">${r.student_count} students</span>
+                        </div>
+                        <span class="text-xs font-bold text-orange-400">${(r.utilization*100).toFixed(0)}%</span>
+                    </div>
+                `).join('');
+            } else {
+                overList.innerHTML = '<div class="text-center text-emerald-400 text-sm p-4">No overloaded routes!</div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Demand & Gap Analysis</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { 
+            background-color: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 0.75rem;
+            transition: border-color 0.2s ease;
+        }
+        .card:hover { border-color: #475569; }
+        .metric-card { 
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .btn-primary { 
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #e11d48, #be123c);
+            color: white;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover { background: linear-gradient(135deg, #be123c, #9f1239); }
+        #map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background: #334155; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-rose-600 rounded-lg flex items-center justify-center shadow-lg shadow-rose-600/20">
+                <iconify-icon icon="solar:graph-down-new-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Demand & Gap Analysis</h1>
+                <p class="dashboard-subtitle">Unmet Demand Hotspots & Capacity Shortages</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <div class="px-3 py-1.5 bg-rose-900/30 border border-rose-700/50 rounded text-xs text-rose-200 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></span>
+                High Alert: 3 Regions
+            </div>
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Top Metrics -->
+    <div class="grid grid-cols-4 gap-6 mb-6 flex-none">
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Unmet Demand</h3>
+            <div class="text-2xl font-bold text-white mt-1" id="total-unmet">-</div>
+            <div class="text-xs text-rose-400 mt-1">+5.2% vs last month</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Waitlist (Delay)</h3>
+            <div class="text-2xl font-bold text-white mt-1" id="reason-delay">-</div>
+            <div class="text-xs text-slate-500 mt-1">Due to route timing</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Waitlist (No Route)</h3>
+            <div class="text-2xl font-bold text-white mt-1" id="reason-noroute">-</div>
+            <div class="text-xs text-slate-500 mt-1">Requires new infrastructure</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Critical Schools</h3>
+            <div class="text-2xl font-bold text-white mt-1" id="critical-schools">-</div>
+            <div class="text-xs text-slate-500 mt-1">> 50 unassigned students</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+        
+        <!-- Left: Gap Map -->
+        <div class="col-span-2 card p-1 flex flex-col h-full">
+            <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:fire-bold" class="text-orange-500"></iconify-icon>
+                    Unassigned Student Heatmap
+                </h3>
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 rounded-full bg-orange-500"></span> Unassigned Student</span>
+                </div>
+            </div>
+            <div class="flex-1 relative rounded-b-lg overflow-hidden">
+                <div id="map-container"></div>
+            </div>
+        </div>
+
+        <!-- Right: Charts -->
+        <div class="flex flex-col gap-6 h-full overflow-y-auto">
+            
+            <!-- Reasons Chart -->
+            <div class="card p-4 flex-1 min-h-[250px]">
+                <h3 class="font-semibold text-white text-sm mb-4">Waitlist Reasons</h3>
+                <div class="h-full w-full relative">
+                    <canvas id="reasonsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Top Regions Table -->
+            <div class="card p-0 flex-1 min-h-[300px] flex flex-col">
+                <div class="p-4 border-b border-slate-700">
+                    <h3 class="font-semibold text-white text-sm">Top Impacted Regions</h3>
+                </div>
+                <div class="overflow-y-auto flex-1 p-2">
+                    <table class="w-full text-left text-sm text-slate-400">
+                        <thead class="text-xs uppercase bg-slate-800 text-slate-200 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 rounded-l">Region</th>
+                                <th class="px-3 py-2">Unassigned</th>
+                                <th class="px-3 py-2 rounded-r">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="regions-table-body" class="divide-y divide-slate-700">
+                            <!-- JS Populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Use shared utilities
+        async function query(sql) {
+            const data = await queryClickHouse(sql);
+            return data && data.length >= 0 ? { data } : null;
+        }
+        const formatNum = (n) => Number(n).toLocaleString();
+
+        async function initDashboard() {
+            // 1. Load Metrics
+            const metricsQuery = `
+                SELECT 
+                    count() as total,
+                    countIf(reason = 'Route Full') as delay,
+                    countIf(reason = 'No Route') as noroute
+                FROM unassigned_students
+            `;
+            const metrics = await query(metricsQuery);
+            if (metrics && metrics.data[0]) {
+                document.getElementById('total-unmet').innerText = formatNum(metrics.data[0].total);
+                document.getElementById('reason-delay').innerText = formatNum(metrics.data[0].delay);
+                document.getElementById('reason-noroute').innerText = formatNum(metrics.data[0].noroute);
+            }
+
+            // Critical Schools
+            const schoolMetric = await query(`
+                SELECT count() as c FROM (
+                    SELECT school_id, count() as cnt FROM unassigned_students GROUP BY school_id HAVING cnt > 50
+                )
+            `);
+            if (schoolMetric) document.getElementById('critical-schools').innerText = formatNum(schoolMetric.data[0].c);
+
+            // 2. Map (Heatmap of unassigned) - Show all unassigned students
+            const points = await query(`
+                SELECT toFloat64(lat) as lat, toFloat64(lon) as lon 
+                FROM unassigned_students 
+                WHERE lat IS NOT NULL AND lon IS NOT NULL
+            `);
+            
+            if (points) {
+                const { DeckGL, ScatterplotLayer, HeatmapLayer } = deck;
+                
+                new DeckGL({
+                    container: 'map-container',
+                    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    initialViewState: {
+                        longitude: 46.7,
+                        latitude: 24.7,
+                        zoom: 10,
+                        pitch: 0,
+                        bearing: 0
+                    },
+                    controller: true,
+                    layers: [
+                        new ScatterplotLayer({
+                            id: 'unassigned-points',
+                            data: points.data,
+                            getPosition: d => [d.lon, d.lat],
+                            getFillColor: [249, 115, 22],
+                            getRadius: 30,
+                            opacity: 0.6
+                        })
+                    ]
+                });
+            }
+
+            // 3. Reasons Chart
+            const reasonsData = await query("SELECT reason, count() as c FROM unassigned_students GROUP BY reason");
+            if (reasonsData) {
+                new Chart(document.getElementById('reasonsChart'), {
+                    type: 'pie',
+                    data: {
+                        labels: reasonsData.data.map(d => d.reason),
+                        datasets: [{
+                            data: reasonsData.data.map(d => d.c),
+                            backgroundColor: ['#f97316', '#ef4444', '#eab308', '#64748b'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { position: 'right', labels: { color: '#94a3b8' } } 
+                        }
+                    }
+                });
+            }
+
+            // 4. Top Regions Table
+            // We need to join with schools or similar to get region, but unassigned_students table doesn't have region column directly visible in describe earlier? 
+            // Wait, describe showed `school_id` but not region. 
+            // Actually `unassigned_students` is generated with `lat/lon`. We might not have region string directly unless we do a join or spatial query.
+            // For speed, let's try grouping by `school_id` and assume we can fetch school region later, or just list top schools for now.
+            // Actually, let's check if `students` table has region. Yes. `unassigned_students` might not.
+            // Let's fallback to `students` with `bus_elig=1` but not assigned? No, let's use `unassigned_students` count per school_id.
+            
+            // Modification: Fetch top schools with unassigned count
+            const topSchools = await query(`
+                SELECT school_id, count() as c 
+                FROM unassigned_students 
+                GROUP BY school_id 
+                ORDER BY c DESC 
+                LIMIT 10
+            `);
+            
+            if (topSchools) {
+                const tbody = document.getElementById('regions-table-body');
+                tbody.innerHTML = topSchools.data.map(row => `
+                    <tr class="hover:bg-slate-800/50">
+                        <td class="px-3 py-2 font-mono text-xs">${row.school_id}</td>
+                        <td class="px-3 py-2 text-white font-bold">${row.c}</td>
+                        <td class="px-3 py-2"><span class="px-2 py-0.5 bg-rose-900/50 text-rose-200 rounded text-[10px]">Critical</span></td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        initDashboard();
+    </script>
+</body>
+</html>

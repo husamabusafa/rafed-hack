@@ -1,0 +1,93 @@
+name: dev-env-isolated
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: gis_db
+    ports:
+      - "5455:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d gis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    platform: linux/amd64
+    ports:
+      - "8155:8123"
+      - "9055:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  martin:
+    image: ghcr.io/maplibre/martin:latest
+    platform: linux/amd64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3055:3000"
+    environment:
+      - DATABASE_URL=postgres://user:password@postgres:5432/gis_db
+    volumes:
+      - ./martin-config.yaml:/config/config.yaml
+    command: ["--config", "/config/config.yaml", "--auto-bounds", "skip"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    platform: linux/amd64
+    ports:
+      - "7755:7700"
+    environment:
+      - MEILI_MASTER_KEY=masterKey
+    volumes:
+      - meilisearch_data:/meili_data
+
+  postgrest:
+    image: postgrest/postgrest:latest
+    platform: linux/amd64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      PGRST_DB_URI: postgres://user:password@postgres:5432/gis_db
+      PGRST_DB_SCHEMAS: public,support_data
+      PGRST_DB_ANON_ROLE: user
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  meilisearch_data:

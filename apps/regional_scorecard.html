@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Regional Performance Scorecard - Rafed Transport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .scorecard { transition: all 0.3s ease; }
+        .scorecard:hover { transform: scale(1.02); box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+        .score-ring { stroke-dasharray: 251.2; transition: stroke-dashoffset 1s ease; }
+        #map { width: 100%; height: 450px; border-radius: 12px; }
+        .grade-a { background: linear-gradient(135deg, #10b981, #059669); }
+        .grade-b { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .grade-c { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .grade-d { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    </style>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-4 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center shadow-lg">
+                    <iconify-icon icon="solar:flag-bold" class="text-xl text-white"></iconify-icon>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold">Regional Performance Scorecard</h1>
+                    <p class="text-slate-300 text-sm">Consolidated KPIs & Coverage Analysis by Region</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <p class="text-xs text-slate-400">Academic Year</p>
+                    <p class="font-mono">1446 (2024-2025)</p>
+                </div>
+                <a href="index.html" class="btn btn-secondary btn-sm">
+                    <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                    Back
+                </a>
+                <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                    <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        <!-- National Summary KPIs -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">🇸🇦 National Summary</h3>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="text-center p-4 bg-emerald-50 rounded-lg">
+                    <p class="text-3xl font-bold text-emerald-600" id="kpiCoverage">--</p>
+                    <p class="text-xs text-gray-500 uppercase">Avg Coverage</p>
+                </div>
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                    <p class="text-3xl font-bold text-blue-600" id="kpiServed">--</p>
+                    <p class="text-xs text-gray-500 uppercase">Students Served</p>
+                </div>
+                <div class="text-center p-4 bg-amber-50 rounded-lg">
+                    <p class="text-3xl font-bold text-amber-600" id="kpiWaiting">--</p>
+                    <p class="text-xs text-gray-500 uppercase">On Waiting List</p>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-lg">
+                    <p class="text-3xl font-bold text-purple-600" id="kpiEligible">--</p>
+                    <p class="text-xs text-gray-500 uppercase">Total Eligible</p>
+                </div>
+                <div class="text-center p-4 bg-rose-50 rounded-lg">
+                    <p class="text-3xl font-bold text-rose-600" id="kpiGap">--</p>
+                    <p class="text-xs text-gray-500 uppercase">Capacity Gap</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Performance Map -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">🗺️ Regional Coverage Map</h3>
+            <div id="map"></div>
+            <div class="mt-3 flex items-center justify-center gap-6 text-sm">
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-emerald-500"></span> Excellent (>80%)</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-blue-500"></span> Good (70-80%)</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-amber-500"></span> Moderate (60-70%)</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-red-500"></span> Low (&lt;60%)</span>
+            </div>
+        </section>
+
+        <!-- Regional Scorecards Grid -->
+        <section>
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">📋 Regional Scorecards</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="scorecardGrid">
+                <div class="bg-white rounded-xl p-6 shadow-md text-center text-gray-400">Loading scorecards...</div>
+            </div>
+        </section>
+
+        <!-- Charts Row -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Coverage Ranking -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🏆 Coverage Ranking</h3>
+                <canvas id="coverageChart" height="350"></canvas>
+            </div>
+
+            <!-- Waiting List Analysis -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">⏳ Waiting List by Region</h3>
+                <canvas id="waitingChart" height="350"></canvas>
+            </div>
+        </section>
+
+        <!-- Detailed Performance Table -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">📊 Detailed Performance Metrics</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">Rank</th>
+                            <th class="px-4 py-3 text-left font-semibold">Region</th>
+                            <th class="px-4 py-3 text-center font-semibold">Grade</th>
+                            <th class="px-4 py-3 text-right font-semibold">Coverage %</th>
+                            <th class="px-4 py-3 text-right font-semibold">Served</th>
+                            <th class="px-4 py-3 text-right font-semibold">Waiting</th>
+                            <th class="px-4 py-3 text-right font-semibold">Eligible</th>
+                            <th class="px-4 py-3 text-left font-semibold">Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody id="performanceTable" class="divide-y divide-gray-100">
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const CH_API = 'http://localhost:8155/?user=viewer&password=rafed_view&max_result_rows=0';
+        
+        async function query(sql) {
+            const res = await fetch(CH_API, {
+                method: 'POST',
+                body: sql + ' FORMAT JSON'
+            });
+            const json = await res.json();
+            return json.data || [];
+        }
+
+        function getGrade(coverage) {
+            if (coverage >= 80) return { grade: 'A', class: 'grade-a', color: '#10b981' };
+            if (coverage >= 70) return { grade: 'B', class: 'grade-b', color: '#3b82f6' };
+            if (coverage >= 60) return { grade: 'C', class: 'grade-c', color: '#f59e0b' };
+            return { grade: 'D', class: 'grade-d', color: '#ef4444' };
+        }
+
+        function getCoverageColor(coverage) {
+            if (coverage >= 80) return [16, 185, 129];
+            if (coverage >= 70) return [59, 130, 246];
+            if (coverage >= 60) return [245, 158, 11];
+            return [239, 68, 68];
+        }
+
+        async function loadDashboard() {
+            const perfData = await query(`
+                SELECT region_name_en, lat, lon, students_covered_by_rafed, 
+                       students_on_waiting_list, total_eligible_students, coverage_percentage
+                FROM vw_region_rafed_performance
+                WHERE lat IS NOT NULL
+                ORDER BY coverage_percentage DESC
+            `);
+
+            if (!perfData.length) return;
+
+            // Calculate national KPIs
+            const totalServed = perfData.reduce((s, r) => s + parseInt(r.students_covered_by_rafed), 0);
+            const totalWaiting = perfData.reduce((s, r) => s + parseInt(r.students_on_waiting_list), 0);
+            const totalEligible = perfData.reduce((s, r) => s + parseInt(r.total_eligible_students), 0);
+            const avgCoverage = perfData.reduce((s, r) => s + parseFloat(r.coverage_percentage), 0) / perfData.length;
+            const capacityGap = totalEligible - totalServed;
+
+            document.getElementById('kpiCoverage').textContent = avgCoverage.toFixed(1) + '%';
+            document.getElementById('kpiServed').textContent = (totalServed / 1000000).toFixed(2) + 'M';
+            document.getElementById('kpiWaiting').textContent = (totalWaiting / 1000).toFixed(0) + 'K';
+            document.getElementById('kpiEligible').textContent = (totalEligible / 1000000).toFixed(2) + 'M';
+            document.getElementById('kpiGap').textContent = (capacityGap / 1000).toFixed(0) + 'K';
+
+            // Generate Scorecards
+            const scorecardGrid = document.getElementById('scorecardGrid');
+            scorecardGrid.innerHTML = perfData.slice(0, 12).map((r, i) => {
+                const { grade, class: gradeClass, color } = getGrade(parseFloat(r.coverage_percentage));
+                const coverage = parseFloat(r.coverage_percentage);
+                const circumference = 251.2;
+                const offset = circumference - (coverage / 100 * circumference);
+                
+                return `
+                    <div class="scorecard bg-white rounded-xl p-5 shadow-md border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <span class="text-xs text-gray-400 uppercase">#${i + 1}</span>
+                                <h4 class="font-semibold text-gray-800">${r.region_name_en}</h4>
+                            </div>
+                            <div class="w-10 h-10 rounded-lg ${gradeClass} flex items-center justify-center text-white font-bold">
+                                ${grade}
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-4">
+                            <div class="relative w-20 h-20">
+                                <svg class="w-20 h-20 transform -rotate-90">
+                                    <circle cx="40" cy="40" r="35" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+                                    <circle cx="40" cy="40" r="35" fill="none" stroke="${color}" stroke-width="6" 
+                                            class="score-ring" stroke-linecap="round"
+                                            style="stroke-dashoffset: ${offset}"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-lg font-bold text-gray-700">${coverage.toFixed(0)}%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex-1 space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Served</span>
+                                    <span class="font-mono font-semibold text-emerald-600">${parseInt(r.students_covered_by_rafed).toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Waiting</span>
+                                    <span class="font-mono font-semibold text-amber-600">${parseInt(r.students_on_waiting_list).toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Eligible</span>
+                                    <span class="font-mono font-semibold text-gray-600">${parseInt(r.total_eligible_students).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Coverage Ranking Chart
+            new Chart(document.getElementById('coverageChart'), {
+                type: 'bar',
+                data: {
+                    labels: perfData.map(r => r.region_name_en),
+                    datasets: [{
+                        label: 'Coverage %',
+                        data: perfData.map(r => parseFloat(r.coverage_percentage)),
+                        backgroundColor: perfData.map(r => getGrade(parseFloat(r.coverage_percentage)).color),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        x: { 
+                            beginAtZero: true, 
+                            max: 100,
+                            ticks: { callback: v => v + '%' }
+                        } 
+                    }
+                }
+            });
+
+            // Waiting List Chart
+            new Chart(document.getElementById('waitingChart'), {
+                type: 'bar',
+                data: {
+                    labels: perfData.sort((a, b) => b.students_on_waiting_list - a.students_on_waiting_list).map(r => r.region_name_en),
+                    datasets: [{
+                        label: 'Waiting List',
+                        data: perfData.sort((a, b) => b.students_on_waiting_list - a.students_on_waiting_list).map(r => parseInt(r.students_on_waiting_list)),
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+
+            // Performance Table
+            const sortedData = [...perfData].sort((a, b) => parseFloat(b.coverage_percentage) - parseFloat(a.coverage_percentage));
+            document.getElementById('performanceTable').innerHTML = sortedData.map((r, i) => {
+                const { grade, class: gradeClass } = getGrade(parseFloat(r.coverage_percentage));
+                const coverage = parseFloat(r.coverage_percentage);
+                
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-mono text-gray-500">#${i + 1}</td>
+                        <td class="px-4 py-3 font-semibold">${r.region_name_en}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="inline-flex w-8 h-8 rounded-lg ${gradeClass} items-center justify-center text-white font-bold text-sm">${grade}</span>
+                        </td>
+                        <td class="px-4 py-3 text-right font-mono font-semibold" style="color: ${getGrade(coverage).color}">${coverage.toFixed(1)}%</td>
+                        <td class="px-4 py-3 text-right font-mono text-emerald-600">${parseInt(r.students_covered_by_rafed).toLocaleString()}</td>
+                        <td class="px-4 py-3 text-right font-mono text-amber-600">${parseInt(r.students_on_waiting_list).toLocaleString()}</td>
+                        <td class="px-4 py-3 text-right font-mono">${parseInt(r.total_eligible_students).toLocaleString()}</td>
+                        <td class="px-4 py-3">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full" style="width: ${coverage}%; background-color: ${getGrade(coverage).color}"></div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Initialize Map
+            window.mapboxgl = maplibregl;
+            const map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+                center: [45.0, 24.0],
+                zoom: 4.5
+            });
+
+            map.on('load', () => {
+                const deckOverlay = new deck.MapboxLayer({
+                    id: 'coverage-layer',
+                    type: deck.ScatterplotLayer,
+                    data: perfData.map(r => ({
+                        position: [parseFloat(r.lon), parseFloat(r.lat)],
+                        coverage: parseFloat(r.coverage_percentage),
+                        region: r.region_name_en,
+                        served: parseInt(r.students_covered_by_rafed),
+                        waiting: parseInt(r.students_on_waiting_list)
+                    })),
+                    getPosition: d => d.position,
+                    getRadius: d => Math.sqrt(d.served) * 50,
+                    getFillColor: d => [...getCoverageColor(d.coverage), 180],
+                    pickable: true
+                });
+                map.addLayer(deckOverlay);
+            });
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

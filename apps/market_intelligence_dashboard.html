@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Market Intelligence - Rafed Transport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .kpi-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        #map { width: 100%; height: 400px; border-radius: 12px; }
+    </style>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-800 to-purple-700 text-white py-4 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold">🔍 Market Intelligence</h1>
+                <p class="text-indigo-200 text-sm">Private Transport Market & Competition Analysis</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-indigo-300">Analysis Period</p>
+                <p class="font-mono">2024-2025</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        <!-- Market Overview KPIs -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-indigo-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Total Market Value</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiMarketValue">--</p>
+                <p class="text-xs text-gray-400">SAR Million</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-purple-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Private Market Share</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiPrivateShare">--</p>
+                <p class="text-xs text-gray-400">% of Transport</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-pink-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Informal Drivers</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiDrivers">--</p>
+                <p class="text-xs text-gray-400">Active Operators</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl p-5 shadow-md border-l-4 border-cyan-500">
+                <p class="text-gray-500 text-xs uppercase tracking-wide">Ride-Hailing Users</p>
+                <p class="text-3xl font-bold text-gray-800" id="kpiRideHailing">--</p>
+                <p class="text-xs text-gray-400">Uber/Careem Students</p>
+            </div>
+        </section>
+
+        <!-- Market Composition -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Market Share Pie -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">📊 Market Composition</h3>
+                <canvas id="marketPieChart" height="250"></canvas>
+            </div>
+
+            <!-- Regional Market Value -->
+            <div class="bg-white rounded-xl p-6 shadow-md col-span-2">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">💰 Market Value by Region</h3>
+                <canvas id="marketValueChart" height="250"></canvas>
+            </div>
+        </section>
+
+        <!-- Competition Analysis -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Private vs Public -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">⚔️ Rafed vs Private Operators</h3>
+                <canvas id="competitionChart" height="280"></canvas>
+            </div>
+
+            <!-- Informal vs Formal Private -->
+            <div class="bg-white rounded-xl p-6 shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🚗 Private Segment Breakdown</h3>
+                <canvas id="privateBreakdownChart" height="280"></canvas>
+            </div>
+        </section>
+
+        <!-- Geographic Map -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">🗺️ Market Concentration by Region</h3>
+            <div id="map"></div>
+            <div class="mt-3 flex items-center justify-center gap-6 text-sm">
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-indigo-500"></span> Private Companies</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-pink-500"></span> Informal Drivers</span>
+                <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-cyan-500"></span> Uber/Careem</span>
+            </div>
+        </section>
+
+        <!-- Regional Details Table -->
+        <section class="bg-white rounded-xl p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">📋 Regional Market Details</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">Region</th>
+                            <th class="px-4 py-3 text-right font-semibold">Market Share %</th>
+                            <th class="px-4 py-3 text-right font-semibold">Market Value (M)</th>
+                            <th class="px-4 py-3 text-right font-semibold">Private Companies</th>
+                            <th class="px-4 py-3 text-right font-semibold">Informal Drivers</th>
+                            <th class="px-4 py-3 text-right font-semibold">Uber/Careem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="marketTable" class="divide-y divide-gray-100">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Strategic Insights -->
+        <section class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-200">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">💡 Strategic Insights</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="insightsGrid">
+                <div class="bg-white rounded-lg p-4 shadow-sm">
+                    <p class="text-indigo-600 font-semibold text-sm mb-2">🎯 Opportunity Regions</p>
+                    <p class="text-gray-600 text-sm" id="insightOpportunity">Loading...</p>
+                </div>
+                <div class="bg-white rounded-lg p-4 shadow-sm">
+                    <p class="text-pink-600 font-semibold text-sm mb-2">⚠️ High Competition Areas</p>
+                    <p class="text-gray-600 text-sm" id="insightCompetition">Loading...</p>
+                </div>
+                <div class="bg-white rounded-lg p-4 shadow-sm">
+                    <p class="text-cyan-600 font-semibold text-sm mb-2">📈 Growth Potential</p>
+                    <p class="text-gray-600 text-sm" id="insightGrowth">Loading...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const CH_API = 'http://localhost:8155/?user=viewer&password=rafed_view&max_result_rows=0';
+        
+        async function query(sql) {
+            const res = await fetch(CH_API, {
+                method: 'POST',
+                body: sql + ' FORMAT JSON'
+            });
+            const json = await res.json();
+            return json.data || [];
+        }
+
+        async function loadDashboard() {
+            // Load market data
+            const marketData = await query(`
+                SELECT region_name_en, lat, lon, market_share_of_private_percent, 
+                       estimated_market_value_sar_million, informal_individual_drivers,
+                       private_company_transport_students, uber_careem_students
+                FROM vw_region_private_transport_market
+                WHERE lat IS NOT NULL
+                ORDER BY estimated_market_value_sar_million DESC
+            `);
+
+            if (!marketData.length) return;
+
+            // Calculate KPIs
+            const totalMarketValue = marketData.reduce((s, r) => s + parseFloat(r.estimated_market_value_sar_million), 0);
+            const avgPrivateShare = marketData.reduce((s, r) => s + parseFloat(r.market_share_of_private_percent), 0) / marketData.length;
+            const totalDrivers = marketData.reduce((s, r) => s + parseInt(r.informal_individual_drivers), 0);
+            const totalRideHailing = marketData.reduce((s, r) => s + parseInt(r.uber_careem_students), 0);
+
+            document.getElementById('kpiMarketValue').textContent = totalMarketValue.toFixed(0).toLocaleString();
+            document.getElementById('kpiPrivateShare').textContent = avgPrivateShare.toFixed(1) + '%';
+            document.getElementById('kpiDrivers').textContent = totalDrivers.toLocaleString();
+            document.getElementById('kpiRideHailing').textContent = totalRideHailing.toLocaleString();
+
+            // Market Composition Pie
+            const totalInformal = marketData.reduce((s, r) => s + parseInt(r.informal_individual_drivers), 0);
+            const totalPrivateCo = marketData.reduce((s, r) => s + parseInt(r.private_company_transport_students), 0);
+            const totalUber = marketData.reduce((s, r) => s + parseInt(r.uber_careem_students), 0);
+            
+            new Chart(document.getElementById('marketPieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Private Companies', 'Informal Drivers', 'Uber/Careem'],
+                    datasets: [{
+                        data: [totalPrivateCo, totalInformal, totalUber],
+                        backgroundColor: ['#6366f1', '#ec4899', '#06b6d4']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+
+            // Market Value Bar Chart
+            new Chart(document.getElementById('marketValueChart'), {
+                type: 'bar',
+                data: {
+                    labels: marketData.slice(0, 10).map(r => r.region_name_en),
+                    datasets: [{
+                        label: 'Market Value (SAR M)',
+                        data: marketData.slice(0, 10).map(r => parseFloat(r.estimated_market_value_sar_million)),
+                        backgroundColor: '#6366f1',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+
+            // Load Rafed coverage data for comparison
+            const rafedData = await query(`
+                SELECT region_name_en, students_covered_by_rafed, students_on_waiting_list, coverage_percentage
+                FROM vw_region_rafed_performance
+            `);
+
+            // Create comparison data
+            const comparisonData = marketData.slice(0, 8).map(m => {
+                const rafed = rafedData.find(r => r.region_name_en === m.region_name_en) || {};
+                return {
+                    region: m.region_name_en,
+                    rafed: parseInt(rafed.students_covered_by_rafed) || 0,
+                    private: parseInt(m.private_company_transport_students) + parseInt(m.informal_individual_drivers)
+                };
+            });
+
+            // Competition Chart
+            new Chart(document.getElementById('competitionChart'), {
+                type: 'bar',
+                data: {
+                    labels: comparisonData.map(r => r.region),
+                    datasets: [{
+                        label: 'Rafed Coverage',
+                        data: comparisonData.map(r => r.rafed),
+                        backgroundColor: '#10b981'
+                    }, {
+                        label: 'Private Operators',
+                        data: comparisonData.map(r => r.private),
+                        backgroundColor: '#ec4899'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Private Breakdown Chart (stacked)
+            new Chart(document.getElementById('privateBreakdownChart'), {
+                type: 'bar',
+                data: {
+                    labels: marketData.slice(0, 8).map(r => r.region_name_en),
+                    datasets: [{
+                        label: 'Private Companies',
+                        data: marketData.slice(0, 8).map(r => parseInt(r.private_company_transport_students)),
+                        backgroundColor: '#6366f1'
+                    }, {
+                        label: 'Informal Drivers',
+                        data: marketData.slice(0, 8).map(r => parseInt(r.informal_individual_drivers)),
+                        backgroundColor: '#ec4899'
+                    }, {
+                        label: 'Uber/Careem',
+                        data: marketData.slice(0, 8).map(r => parseInt(r.uber_careem_students)),
+                        backgroundColor: '#06b6d4'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                }
+            });
+
+            // Market Table
+            document.getElementById('marketTable').innerHTML = marketData.map(r => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">${r.region_name_en}</td>
+                    <td class="px-4 py-3 text-right">
+                        <span class="px-2 py-1 rounded text-xs ${parseFloat(r.market_share_of_private_percent) > 30 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}">
+                            ${parseFloat(r.market_share_of_private_percent).toFixed(1)}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono">${parseFloat(r.estimated_market_value_sar_million).toFixed(0)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-indigo-600">${parseInt(r.private_company_transport_students).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right font-mono text-pink-600">${parseInt(r.informal_individual_drivers).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right font-mono text-cyan-600">${parseInt(r.uber_careem_students).toLocaleString()}</td>
+                </tr>
+            `).join('');
+
+            // Generate insights
+            const highOpportunity = marketData.filter(r => parseFloat(r.market_share_of_private_percent) > 30).slice(0, 3);
+            const lowCompetition = marketData.filter(r => parseFloat(r.market_share_of_private_percent) < 20).slice(0, 3);
+            
+            document.getElementById('insightOpportunity').textContent = 
+                highOpportunity.length ? `${highOpportunity.map(r => r.region_name_en).join(', ')} show high private market share - opportunity to capture market` : 'No clear opportunities identified';
+            
+            document.getElementById('insightCompetition').textContent = 
+                `Top regions with informal drivers: ${marketData.sort((a,b) => b.informal_individual_drivers - a.informal_individual_drivers).slice(0,2).map(r => r.region_name_en).join(', ')}`;
+            
+            document.getElementById('insightGrowth').textContent = 
+                `Total addressable market: ${totalMarketValue.toFixed(0)}M SAR. Ride-hailing segment growing with ${totalRideHailing.toLocaleString()} students`;
+
+            // Initialize Map
+            window.mapboxgl = maplibregl;
+            const map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+                center: [45.0, 24.0],
+                zoom: 4.5
+            });
+
+            map.on('load', () => {
+                const deckOverlay = new deck.MapboxLayer({
+                    id: 'market-layer',
+                    type: deck.ScatterplotLayer,
+                    data: marketData.map(r => ({
+                        position: [parseFloat(r.lon), parseFloat(r.lat)],
+                        marketValue: parseFloat(r.estimated_market_value_sar_million),
+                        region: r.region_name_en,
+                        privateShare: parseFloat(r.market_share_of_private_percent)
+                    })),
+                    getPosition: d => d.position,
+                    getRadius: d => Math.sqrt(d.marketValue) * 3000,
+                    getFillColor: d => d.privateShare > 30 ? [236, 72, 153, 180] : [99, 102, 241, 180],
+                    pickable: true
+                });
+                map.addLayer(deckOverlay);
+            });
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

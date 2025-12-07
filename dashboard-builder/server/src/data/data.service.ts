@@ -1,0 +1,137 @@
+import { Injectable } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+
+@Injectable()
+export class DataService {
+  constructor(
+    @InjectDataSource()
+    private dataSource: DataSource,
+  ) {}
+
+  async getData() {
+    try {
+      // Get list of tables in the database
+      const tables = await this.dataSource.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+        LIMIT 5
+      `);
+
+      // If there are tables, get sample data from the first one
+      if (tables && tables.length > 0) {
+        const firstTable = tables[0].table_name;
+        const sampleData = await this.dataSource.query(
+          `SELECT * FROM "${firstTable}" LIMIT 5`
+        );
+
+        return {
+          message: 'Data fetched successfully',
+          tables: tables.map((t: any) => t.table_name),
+          sampleTable: firstTable,
+          sampleData,
+        };
+      }
+
+      return {
+        message: 'No tables found in database',
+        tables: [],
+      };
+    } catch (error) {
+      return {
+        message: 'Error fetching data',
+        error: error.message,
+      };
+    }
+  }
+
+  async executeQuery(query: string, params?: any, schema?: string) {
+    const started = Date.now();
+    try {
+      // Prepare parameters array
+      const parameters = Array.isArray(params)
+        ? params
+        : params && typeof params === 'object'
+          ? Object.values(params)
+          : [];
+
+      // Execute the query with parameters
+      const result = await this.dataSource.query(query, parameters);
+      const durationMs = Date.now() - started;
+
+      return {
+        success: true,
+        data: result,
+        rowCount: Array.isArray(result) ? result.length : 0,
+        meta: {
+          durationMs,
+          schema: schema || undefined,
+          params: parameters,
+        },
+      };
+    } catch (error: any) {
+      const durationMs = Date.now() - started;
+      return {
+        success: false,
+        error: error?.message || String(error),
+        data: [],
+        meta: {
+          durationMs,
+          schema: schema || undefined,
+        },
+      };
+    }
+  }
+
+  async executeClickHouseQuery(query: string, maxRows: number = 0, timeout: number = 30000) {
+    const started = Date.now();
+    
+    // ClickHouse configuration from environment or defaults
+    const CH_BASE = process.env.CLICKHOUSE_URL || 'http://localhost:8155';
+    const CH_USER = process.env.CLICKHOUSE_USER || 'viewer';
+    const CH_PASS = process.env.CLICKHOUSE_PASSWORD || 'rafed_view';
+
+    try {
+      const url = `${CH_BASE}/?default_format=JSON&max_result_rows=${maxRows}&max_execution_time=${timeout / 1000}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+          'Authorization': `Basic ${Buffer.from(`${CH_USER}:${CH_PASS}`).toString('base64')}`
+        },
+        body: query
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`ClickHouse error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      const durationMs = Date.now() - started;
+
+      return {
+        success: true,
+        data: result.data || [],
+        rowCount: result.rows || (result.data ? result.data.length : 0),
+        meta: {
+          durationMs,
+          rows_before_limit_at_least: result.rows_before_limit_at_least,
+          statistics: result.statistics
+        }
+      };
+    } catch (error: any) {
+      const durationMs = Date.now() - started;
+      return {
+        success: false,
+        error: error?.message || String(error),
+        data: [],
+        meta: {
+          durationMs
+        }
+      };
+    }
+  }
+}

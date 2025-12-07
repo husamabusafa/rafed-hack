@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Data Catalog Infographic</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <!-- Chart.js 4.4.1 with treemap 2.3.1 (compatible versions) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.1/dist/chartjs-chart-treemap.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* Animations */
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); } 50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.5); } }
+        @keyframes countUp { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        
+        .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+        .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+        .animate-count { animation: countUp 0.6s ease-out forwards; }
+        
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+        
+        /* Loading skeleton */
+        .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        
+        /* Search input */
+        .search-input { background: rgba(30, 41, 59, 0.8); border: 1px solid #475569; transition: all 0.3s ease; }
+        .search-input:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2); outline: none; }
+        
+        /* Tab buttons */
+        .tab-btn { transition: all 0.2s ease; }
+        .tab-btn.active { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+        .tab-btn:not(.active):hover { background: rgba(59, 130, 246, 0.2); }
+        
+        /* Data lineage connectors */
+        .lineage-line { stroke-dasharray: 5, 5; animation: dash 1s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -10; } }
+        
+        /* Table row hover */
+        .table-row { transition: all 0.2s ease; }
+        .table-row:hover { background: rgba(59, 130, 246, 0.1); transform: translateX(4px); }
+        
+        /* Modal */
+        .modal-backdrop { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); }
+        .modal-content { animation: fadeInUp 0.3s ease-out; }
+        
+        /* Category filter pills */
+        .filter-pill { transition: all 0.2s ease; cursor: pointer; }
+        .filter-pill:hover { transform: scale(1.05); }
+        .filter-pill.active { ring: 2px; ring-offset: 2px; }
+    </style>
+</head>
+<body class="min-h-screen bg-[url('https://assets.website-files.com/63904f663ac2690c6941051b/63905b263ac2692c85410852_bg-hero.svg')] bg-cover bg-center bg-fixed bg-no-repeat">
+
+    <div class="container mx-auto px-6 py-12 max-w-7xl">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <iconify-icon icon="solar:database-bold" class="text-2xl text-white"></iconify-icon>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-white">Rafed Data Universe</h1>
+                    <p class="text-slate-400 text-sm">45+ datasets powering school transport intelligence</p>
+                </div>
+            </div>
+            <div class="flex gap-3 items-center">
+                <a href="index.html" class="btn btn-secondary btn-sm">
+                    <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                    Back
+                </a>
+                <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                    <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                    Refresh
+                </button>
+            </div>
+        </div>
+        
+        <!-- Hero Banner -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-900/30 border border-blue-500/30 text-blue-300 text-sm font-medium mb-4">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+                Live Data Architecture
+            </div>
+        </div>
+        
+        <!-- Search & Filter Bar -->
+        <div class="card p-4 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between animate-fade-in-up">
+            <div class="relative flex-1 max-w-md w-full">
+                <iconify-icon icon="solar:magnifer-linear" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></iconify-icon>
+                <input type="text" id="searchInput" placeholder="Search datasets..." 
+                    class="search-input w-full pl-10 pr-4 py-2.5 rounded-lg text-white placeholder-slate-500">
+            </div>
+            <div class="flex gap-2 flex-wrap justify-center" id="filterPills">
+                <button onclick="filterByCategory('all')" class="filter-pill active px-3 py-1.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300" data-category="all">
+                    All
+                </button>
+                <button onclick="filterByCategory('GIS')" class="filter-pill px-3 py-1.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-500/30" data-category="GIS">
+                    <iconify-icon icon="mdi:map-marker" class="mr-1"></iconify-icon>GIS
+                </button>
+                <button onclick="filterByCategory('Support')" class="filter-pill px-3 py-1.5 rounded-full text-xs font-medium bg-purple-900/50 text-purple-300 border border-purple-500/30" data-category="Support">
+                    <iconify-icon icon="mdi:file-document" class="mr-1"></iconify-icon>Support
+                </button>
+                <button onclick="filterByCategory('Admin')" class="filter-pill px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-500/30" data-category="Admin">
+                    <iconify-icon icon="mdi:map" class="mr-1"></iconify-icon>Admin
+                </button>
+                <button onclick="filterByCategory('Views')" class="filter-pill px-3 py-1.5 rounded-full text-xs font-medium bg-pink-900/50 text-pink-300 border border-pink-500/30" data-category="Views">
+                    <iconify-icon icon="mdi:view-grid" class="mr-1"></iconify-icon>Views
+                </button>
+            </div>
+        </div>
+
+        <!-- Big Numbers -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <div class="card p-6 text-center hover:scale-105 transition-transform duration-300 shadow-2xl shadow-blue-900/20 animate-fade-in-up stagger-1">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 flex items-center justify-center animate-pulse-glow">
+                    <iconify-icon icon="solar:database-bold" class="text-3xl text-blue-500"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Total Records</h3>
+                <div class="text-4xl font-black text-white animate-count" id="total-rows">
+                    <div class="skeleton h-10 w-24 mx-auto rounded"></div>
+                </div>
+                <div class="text-xs text-blue-400 mt-2">Across all tables</div>
+            </div>
+            <div class="card p-6 text-center hover:scale-105 transition-transform duration-300 shadow-2xl shadow-purple-900/20 animate-fade-in-up stagger-2">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:widget-4-bold" class="text-3xl text-purple-500"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Active Datasets</h3>
+                <div class="text-4xl font-black text-white animate-count" id="total-tables">
+                    <div class="skeleton h-10 w-16 mx-auto rounded"></div>
+                </div>
+                <div class="text-xs text-purple-400 mt-2">Core & Support Layers</div>
+            </div>
+            <div class="card p-6 text-center hover:scale-105 transition-transform duration-300 shadow-2xl shadow-emerald-900/20 animate-fade-in-up stagger-3">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:server-bold" class="text-3xl text-emerald-500"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Data Volume</h3>
+                <div class="text-4xl font-black text-white animate-count" id="total-size">
+                    <div class="skeleton h-10 w-20 mx-auto rounded"></div>
+                </div>
+                <div class="text-xs text-emerald-400 mt-2">Compressed storage</div>
+            </div>
+            <div class="card p-6 text-center hover:scale-105 transition-transform duration-300 shadow-2xl shadow-amber-900/20 animate-fade-in-up stagger-4">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:chart-2-bold" class="text-3xl text-amber-500"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Total Columns</h3>
+                <div class="text-4xl font-black text-white animate-count" id="total-columns">
+                    <div class="skeleton h-10 w-16 mx-auto rounded"></div>
+                </div>
+                <div class="text-xs text-amber-400 mt-2">Data attributes</div>
+            </div>
+        </div>
+
+        <!-- Visualization Tabs -->
+        <div class="card p-1 mb-8 inline-flex gap-1 rounded-xl bg-slate-800/50">
+            <button onclick="switchTab('treemap')" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium" data-tab="treemap">
+                <iconify-icon icon="mdi:chart-tree" class="mr-1"></iconify-icon>Treemap
+            </button>
+            <button onclick="switchTab('bar')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-400" data-tab="bar">
+                <iconify-icon icon="mdi:chart-bar" class="mr-1"></iconify-icon>Bar Chart
+            </button>
+            <button onclick="switchTab('lineage')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-400" data-tab="lineage">
+                <iconify-icon icon="mdi:sitemap" class="mr-1"></iconify-icon>Data Lineage
+            </button>
+        </div>
+
+        <!-- Layout: Charts & List -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            
+            <!-- Visualization Area -->
+            <div class="lg:col-span-2 card p-6 min-h-[500px] flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2" id="chart-title">
+                        <iconify-icon icon="mdi:chart-tree" class="text-blue-500"></iconify-icon>
+                        Dataset Volume Hierarchy
+                    </h2>
+                    <div class="flex gap-2">
+                        <button onclick="exportChartData()" class="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-700 rounded-lg" title="Export Data">
+                            <iconify-icon icon="solar:download-linear" class="text-lg"></iconify-icon>
+                        </button>
+                        <button onclick="toggleFullscreen()" class="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-700 rounded-lg" title="Fullscreen">
+                            <iconify-icon icon="solar:full-screen-linear" class="text-lg"></iconify-icon>
+                        </button>
+                    </div>
+                </div>
+                <div class="relative flex-1 bg-slate-900 rounded-lg overflow-hidden" id="chart-container" style="min-height: 400px;">
+                    <canvas id="treemapChart" class="w-full h-full"></canvas>
+                    <canvas id="barChart" class="hidden w-full h-full"></canvas>
+                    <div id="lineageView" class="hidden w-full h-full overflow-auto"></div>
+                    <div id="chartLoading" class="absolute inset-0 flex items-center justify-center bg-slate-900">
+                        <div class="text-slate-400 flex flex-col items-center gap-3">
+                            <svg class="animate-spin h-8 w-8" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Loading chart data...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Tables List -->
+            <div class="card p-0 overflow-hidden flex flex-col h-full max-h-[600px]">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/50">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <iconify-icon icon="mdi:star-circle" class="text-amber-500"></iconify-icon>
+                        Largest Datasets
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">Click a row to view schema</p>
+                </div>
+                <div class="overflow-y-auto flex-1 p-2 custom-scrollbar" id="top-tables-list">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Dataset Categories -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            
+            <!-- Category 1 -->
+            <div class="card p-6 border-t-4 border-t-blue-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="bg-blue-500/10 p-3 rounded-lg">
+                        <iconify-icon icon="mdi:map-marker-radius" class="text-2xl text-blue-500"></iconify-icon>
+                    </div>
+                    <span class="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded">Core GIS</span>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Geospatial Layers</h3>
+                <p class="text-sm text-slate-400 mb-4">Students, Schools, Routes, Isochrones</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-2xl font-bold text-white" id="count-gis">-</span>
+                    <span class="text-xs text-slate-500">Tables</span>
+                </div>
+            </div>
+
+            <!-- Category 2 -->
+            <div class="card p-6 border-t-4 border-t-purple-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="bg-purple-500/10 p-3 rounded-lg">
+                        <iconify-icon icon="mdi:file-document-multiple" class="text-2xl text-purple-500"></iconify-icon>
+                    </div>
+                    <span class="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded">Support</span>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Analytic Reports</h3>
+                <p class="text-sm text-slate-400 mb-4">Market, Demographics, Satisfaction</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-2xl font-bold text-white" id="count-support">-</span>
+                    <span class="text-xs text-slate-500">Tables</span>
+                </div>
+            </div>
+
+            <!-- Category 3 -->
+            <div class="card p-6 border-t-4 border-t-emerald-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="bg-emerald-500/10 p-3 rounded-lg">
+                        <iconify-icon icon="mdi:map" class="text-2xl text-emerald-500"></iconify-icon>
+                    </div>
+                    <span class="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded">Boundaries</span>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Admin Divisions</h3>
+                <p class="text-sm text-slate-400 mb-4">Regions, Counties, Neighborhoods</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-2xl font-bold text-white" id="count-admin">-</span>
+                    <span class="text-xs text-slate-500">Tables</span>
+                </div>
+            </div>
+
+            <!-- Category 4 -->
+            <div class="card p-6 border-t-4 border-t-pink-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="bg-pink-500/10 p-3 rounded-lg">
+                        <iconify-icon icon="mdi:view-grid" class="text-2xl text-pink-500"></iconify-icon>
+                    </div>
+                    <span class="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded">Views</span>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Analytics Views</h3>
+                <p class="text-sm text-slate-400 mb-4">Optimized Aggregations for Dashboards</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-2xl font-bold text-white" id="count-views">-</span>
+                    <span class="text-xs text-slate-500">Views</span>
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- Data Quality Section -->
+        <div class="card p-6 mb-8 animate-fade-in-up">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <iconify-icon icon="solar:shield-check-bold" class="text-emerald-500"></iconify-icon>
+                    Data Quality Overview
+                </h2>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="quality-metrics">
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-emerald-400" id="quality-completeness">--</div>
+                    <div class="text-xs text-slate-400 mt-1">Completeness</div>
+                    <div class="h-1.5 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-emerald-500 rounded-full transition-all duration-1000" id="bar-completeness" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-blue-400" id="quality-populated">--</div>
+                    <div class="text-xs text-slate-400 mt-1">Populated Tables</div>
+                    <div class="h-1.5 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full transition-all duration-1000" id="bar-populated" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-purple-400" id="quality-avgcols">--</div>
+                    <div class="text-xs text-slate-400 mt-1">Avg Columns/Table</div>
+                    <div class="h-1.5 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-purple-500 rounded-full transition-all duration-1000" id="bar-avgcols" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-amber-400" id="quality-geo">--</div>
+                    <div class="text-xs text-slate-400 mt-1">Geo-Enabled</div>
+                    <div class="h-1.5 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-amber-500 rounded-full transition-all duration-1000" id="bar-geo" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Schema Modal -->
+    <div id="schemaModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-backdrop absolute inset-0" onclick="closeSchemaModal()"></div>
+        <div class="modal-content absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <div class="card p-0">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <iconify-icon icon="solar:document-text-bold" class="text-blue-500"></iconify-icon>
+                        <span id="modal-table-name">Table Schema</span>
+                    </h3>
+                    <button onclick="closeSchemaModal()" class="text-slate-400 hover:text-white p-1">
+                        <iconify-icon icon="solar:close-circle-linear" class="text-xl"></iconify-icon>
+                    </button>
+                </div>
+                <div class="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar" id="schema-content">
+                    <!-- Schema populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Register treemap controller if available
+        if (window.Chart && window.Chart.registry) {
+            // TreemapController is auto-registered by the plugin
+            console.log('Chart.js loaded:', Chart.version);
+        }
+        
+        const CH_API = 'http://localhost:8155';
+        const AUTH = 'user=viewer&password=rafed_view&max_result_rows=0';
+        
+        // Global state
+        let allTables = [];
+        let filteredTables = [];
+        let currentFilter = 'all';
+        let currentChart = null;
+        let barChart = null;
+
+        async function query(sql) {
+            try {
+                const r = await fetch(`${CH_API}/?${AUTH}&query=${encodeURIComponent(sql + ' FORMAT JSON')}`);
+                return await r.json();
+            } catch(e) { console.error(e); return null; }
+        }
+
+        const formatNum = (n) => Number(n).toLocaleString();
+        const formatSize = (n) => {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            while(n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+            return `${n.toFixed(1)} ${units[i]}`;
+        };
+        
+        // Animated counter
+        function animateValue(element, start, end, duration, formatter = formatNum) {
+            const range = end - start;
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.floor(start + range * easeOut);
+                element.textContent = formatter(current);
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+        
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filterAndRender(searchTerm);
+        });
+        
+        function filterByCategory(category) {
+            currentFilter = category;
+            document.querySelectorAll('.filter-pill').forEach(pill => {
+                pill.classList.toggle('active', pill.dataset.category === category);
+                if (pill.dataset.category === category) {
+                    pill.classList.add('ring-2', 'ring-offset-2', 'ring-offset-slate-900');
+                } else {
+                    pill.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-slate-900');
+                }
+            });
+            filterAndRender(document.getElementById('searchInput').value.toLowerCase());
+        }
+        
+        function filterAndRender(searchTerm = '') {
+            filteredTables = allTables.filter(t => {
+                const matchesSearch = t.name.toLowerCase().includes(searchTerm);
+                const matchesCategory = currentFilter === 'all' || t.category === currentFilter;
+                return matchesSearch && matchesCategory;
+            });
+            renderTableList(filteredTables);
+            updateTreemap(filteredTables);
+            updateBarChart(filteredTables);
+        }
+        
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+                btn.classList.toggle('text-slate-400', btn.dataset.tab !== tab);
+            });
+            
+            const treemap = document.getElementById('treemapChart');
+            const bar = document.getElementById('barChart');
+            const lineage = document.getElementById('lineageView');
+            const title = document.getElementById('chart-title');
+            
+            treemap.classList.toggle('hidden', tab !== 'treemap');
+            bar.classList.toggle('hidden', tab !== 'bar');
+            lineage.classList.toggle('hidden', tab !== 'lineage');
+            
+            if (tab === 'treemap') {
+                title.innerHTML = '<iconify-icon icon="mdi:chart-tree" class="text-blue-500"></iconify-icon> Dataset Volume Hierarchy';
+            } else if (tab === 'bar') {
+                title.innerHTML = '<iconify-icon icon="mdi:chart-bar" class="text-purple-500"></iconify-icon> Top Datasets by Row Count';
+            } else {
+                title.innerHTML = '<iconify-icon icon="mdi:sitemap" class="text-emerald-500"></iconify-icon> Data Lineage Map';
+                renderLineage();
+            }
+        }
+        
+        // Schema Modal
+        async function showSchema(tableName) {
+            const modal = document.getElementById('schemaModal');
+            const content = document.getElementById('schema-content');
+            const title = document.getElementById('modal-table-name');
+            
+            title.textContent = tableName;
+            content.innerHTML = '<div class="flex items-center justify-center py-8"><iconify-icon icon="svg-spinners:ring-resize" class="text-3xl text-blue-500"></iconify-icon></div>';
+            modal.classList.remove('hidden');
+            
+            const res = await query(`DESCRIBE TABLE ${tableName}`);
+            if (res && res.data) {
+                content.innerHTML = `
+                    <div class="space-y-2">
+                        ${res.data.map((col, i) => `
+                            <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-slate-500 font-mono text-xs w-6">${i+1}</span>
+                                    <div>
+                                        <div class="font-medium text-white">${col.name}</div>
+                                        <div class="text-xs text-slate-500">${col.default_type || 'No default'}</div>
+                                    </div>
+                                </div>
+                                <span class="text-xs font-mono px-2 py-1 rounded bg-blue-900/30 text-blue-300">${col.type}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                content.innerHTML = '<div class="text-center text-slate-400 py-8">Failed to load schema</div>';
+            }
+        }
+        
+        function closeSchemaModal() {
+            document.getElementById('schemaModal').classList.add('hidden');
+        }
+        
+        // Export data
+        function exportChartData() {
+            const data = filteredTables.map(t => ({
+                name: t.name,
+                category: t.category,
+                rows: Number(t.total_rows),
+                size_bytes: Number(t.total_bytes)
+            }));
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'rafed_data_catalog.json';
+            a.click();
+        }
+        
+        // Fullscreen
+        function toggleFullscreen() {
+            const container = document.getElementById('chart-container');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        // Render table list
+        function renderTableList(tables) {
+            const list = document.getElementById('top-tables-list');
+            list.innerHTML = '';
+            
+            tables.slice(0, 20).forEach((t, i) => {
+                const size = formatSize(Number(t.total_bytes));
+                const rows = formatNum(Number(t.total_rows));
+                
+                let badgeColor = 'bg-slate-700 text-slate-300';
+                if(t.category === 'GIS') badgeColor = 'bg-blue-900/50 text-blue-200';
+                if(t.category === 'Support') badgeColor = 'bg-purple-900/50 text-purple-200';
+                if(t.category === 'Admin') badgeColor = 'bg-emerald-900/50 text-emerald-200';
+                if(t.category === 'Views') badgeColor = 'bg-pink-900/50 text-pink-200';
+                
+                list.innerHTML += `
+                    <div class="table-row flex items-center justify-between p-3 rounded-lg cursor-pointer mb-1" onclick="showSchema('${t.name}')">
+                        <div class="flex items-center gap-3">
+                            <span class="text-slate-500 font-mono text-xs w-6">#${i+1}</span>
+                            <div>
+                                <div class="font-semibold text-white text-sm">${t.name}</div>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded ${badgeColor}">${t.category}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-emerald-400 font-bold text-sm">${rows}</div>
+                            <div class="text-slate-500 text-xs">${size}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Update treemap with filtered data
+        function updateTreemap(tables) {
+            // Hide loading indicator
+            const loading = document.getElementById('chartLoading');
+            if (loading) loading.classList.add('hidden');
+            
+            const treeData = tables
+                .filter(t => Number(t.total_rows) > 0)
+                .map(t => ({
+                    category: t.category,
+                    name: t.name,
+                    value: Number(t.total_rows)
+                }));
+            
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            // If no data, show message
+            if (!treeData.length) {
+                const canvas = document.getElementById('treemapChart');
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '14px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText('No data available', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            try {
+                const canvas = document.getElementById('treemapChart');
+                const ctx = canvas.getContext('2d');
+                
+                // Get color based on category
+                const getColor = (cat, alpha = 0.85) => {
+                    if (cat === 'GIS') return `rgba(59, 130, 246, ${alpha})`;
+                    if (cat === 'Support') return `rgba(168, 85, 247, ${alpha})`;
+                    if (cat === 'Admin') return `rgba(16, 185, 129, ${alpha})`;
+                    if (cat === 'Views') return `rgba(236, 72, 153, ${alpha})`;
+                    return `rgba(100, 116, 139, ${alpha})`;
+                };
+                
+                currentChart = new Chart(ctx, {
+                type: 'treemap',
+                data: {
+                    datasets: [{
+                        tree: treeData,
+                        key: 'value',
+                        groups: ['category', 'name'],
+                        spacing: 2,
+                        borderWidth: 2,
+                        borderColor: '#0f172a',
+                        backgroundColor: (ctx) => {
+                            if (ctx.type !== 'data') return 'transparent';
+                            const item = ctx.raw;
+                            const cat = item._data?.category || item._data?.children?.[0]?.category || 'Other';
+                            return getColor(cat, 0.85);
+                        },
+                        hoverBackgroundColor: (ctx) => {
+                            if (ctx.type !== 'data') return 'transparent';
+                            const item = ctx.raw;
+                            const cat = item._data?.category || item._data?.children?.[0]?.category || 'Other';
+                            return getColor(cat, 1);
+                        },
+                        labels: {
+                            display: true,
+                            formatter: (ctx) => {
+                                if(ctx.type === 'data' && ctx.raw?._data) {
+                                    return ctx.raw._data.name || '';
+                                }
+                                return '';
+                            },
+                            color: '#fff',
+                            font: { family: 'Inter', size: 10, weight: '500' }
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length && elements[0].raw?._data?.name) {
+                            showSchema(elements[0].raw._data.name);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#94a3b8',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            padding: 12,
+                            callbacks: {
+                                title: (items) => {
+                                    if (!items?.length || !items[0].raw?._data) return '';
+                                    return items[0].raw._data.name || 'Unknown';
+                                },
+                                label: (item) => {
+                                    if (!item?.raw) return '';
+                                    return `Rows: ${formatNum(item.raw.v || item.raw.value || 0)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            } catch (err) {
+                console.error('Treemap render error:', err);
+                // Fallback to showing data as list in the chart area
+                const container = document.getElementById('chart-container');
+                container.innerHTML = `
+                    <div class="p-6 overflow-auto h-full bg-slate-900">
+                        <p class="text-slate-400 text-sm mb-4">Treemap unavailable. Showing data list:</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${treeData.slice(0, 20).map(t => `
+                                <div class="p-2 rounded bg-slate-800 text-sm">
+                                    <div class="text-white truncate">${t.name}</div>
+                                    <div class="text-slate-400 text-xs">${formatNum(t.value)} rows</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Bar chart
+        function updateBarChart(tables) {
+            const top10 = tables.slice(0, 10);
+            
+            if (barChart) {
+                barChart.destroy();
+            }
+            
+            const colors = top10.map(t => {
+                if (t.category === 'GIS') return 'rgba(59, 130, 246, 0.8)';
+                if (t.category === 'Support') return 'rgba(168, 85, 247, 0.8)';
+                if (t.category === 'Admin') return 'rgba(16, 185, 129, 0.8)';
+                if (t.category === 'Views') return 'rgba(236, 72, 153, 0.8)';
+                return 'rgba(100, 116, 139, 0.8)';
+            });
+            
+            barChart = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: top10.map(t => t.name),
+                    datasets: [{
+                        label: 'Row Count',
+                        data: top10.map(t => Number(t.total_rows)),
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.8', '1')),
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length) {
+                            showSchema(top10[elements[0].index].name);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            callbacks: {
+                                label: (ctx) => `Rows: ${formatNum(ctx.raw)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(51, 65, 85, 0.5)' },
+                            ticks: { color: '#94a3b8', callback: (v) => formatNum(v) }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#e2e8f0', font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Data lineage visualization
+        function renderLineage() {
+            const container = document.getElementById('lineageView');
+            
+            if (!allTables.length) {
+                container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400">Loading data...</div>';
+                return;
+            }
+            
+            // Group tables by category - include Other and use top tables by row count
+            const getTopByCategory = (cat, limit = 5) => 
+                allTables.filter(t => t.category === cat).slice(0, limit);
+            
+            const sourceData = getTopByCategory('GIS');
+            const processingData = getTopByCategory('Support');
+            const analyticsData = getTopByCategory('Views');
+            const otherData = allTables.filter(t => t.category === 'Other').slice(0, 5);
+            
+            // Helper to render a column of tables
+            const renderColumn = (title, tables, colorClass, bgClass, borderClass) => {
+                if (!tables.length) {
+                    return `
+                        <div class="flex flex-col gap-3 min-w-[160px]">
+                            <div class="text-xs font-bold ${colorClass} uppercase tracking-wider text-center mb-2">${title}</div>
+                            <div class="text-xs text-slate-500 text-center py-4">No tables</div>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="flex flex-col gap-3 min-w-[160px]">
+                        <div class="text-xs font-bold ${colorClass} uppercase tracking-wider text-center mb-2">${title}</div>
+                        ${tables.map(t => `
+                            <div onclick="showSchema('${t.name}')" class="cursor-pointer px-4 py-2 rounded-lg ${bgClass} border ${borderClass} text-sm hover:opacity-80 transition-all truncate max-w-[200px]" title="${t.name}">
+                                ${t.name}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            };
+            
+            container.innerHTML = `
+                <div class="flex flex-col h-full p-6 overflow-auto">
+                    <div class="text-center mb-8">
+                        <h3 class="text-xl font-semibold text-white mb-2">Data Flow Architecture</h3>
+                        <p class="text-sm text-slate-400">Source Data → Processing → Analytics Views</p>
+                    </div>
+                    
+                    <div class="flex flex-wrap justify-center items-start gap-4">
+                        ${renderColumn('Source (GIS)', sourceData, 'text-blue-400', 'bg-blue-900/30', 'border-blue-500/30 text-blue-200')}
+                        
+                        <div class="flex items-center self-center py-8">
+                            <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </div>
+                        
+                        ${renderColumn('Core Tables', otherData, 'text-slate-400', 'bg-slate-700/30', 'border-slate-500/30 text-slate-200')}
+                        
+                        <div class="flex items-center self-center py-8">
+                            <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </div>
+                        
+                        ${renderColumn('Processing', processingData, 'text-purple-400', 'bg-purple-900/30', 'border-purple-500/30 text-purple-200')}
+                        
+                        <div class="flex items-center self-center py-8">
+                            <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </div>
+                        
+                        ${renderColumn('Analytics', analyticsData, 'text-pink-400', 'bg-pink-900/30', 'border-pink-500/30 text-pink-200')}
+                    </div>
+                    
+                    <div class="mt-8 text-center">
+                        <p class="text-xs text-slate-500">Click any table to view its schema</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function init() {
+            // Fetch Table Metadata
+            const sql = `
+                SELECT
+                    name,
+                    total_rows,
+                    total_bytes
+                FROM system.tables
+                WHERE database = 'default'
+                ORDER BY total_rows DESC
+            `;
+            
+            // Fetch column count
+            const colSql = `
+                SELECT count() as total_columns
+                FROM system.columns
+                WHERE database = 'default'
+            `;
+            
+            const [res, colRes] = await Promise.all([query(sql), query(colSql)]);
+            
+            if(!res || !res.data) return;
+
+            let totalRows = 0;
+            let totalBytes = 0;
+            const totalColumns = colRes?.data?.[0]?.total_columns || 0;
+            
+            // Categorize
+            let counts = { gis: 0, support: 0, admin: 0, views: 0, other: 0 };
+            let populatedCount = 0;
+            
+            res.data.forEach(t => {
+                totalRows += Number(t.total_rows);
+                totalBytes += Number(t.total_bytes);
+                if (Number(t.total_rows) > 0) populatedCount++;
+                
+                let cat = 'Other';
+                if(t.name.startsWith('vw_') || t.name.endsWith('_view')) cat = 'Views';
+                else if(t.name.startsWith('support_data_')) cat = 'Support';
+                else if(['students', 'schools', 'school_routes', 'buildings'].includes(t.name) || t.name.includes('isochrone')) cat = 'GIS';
+                else if(t.name.includes('division') || t.name.includes('boundary')) cat = 'Admin';
+                
+                if(cat === 'Views') counts.views++;
+                else if(cat === 'Support') counts.support++;
+                else if(cat === 'GIS') counts.gis++;
+                else if(cat === 'Admin') counts.admin++;
+                else counts.other++;
+
+                allTables.push({ ...t, category: cat });
+            });
+            
+            filteredTables = [...allTables];
+
+            // Animate Big Numbers
+            animateValue(document.getElementById('total-rows'), 0, totalRows, 1500);
+            animateValue(document.getElementById('total-tables'), 0, res.rows, 1000);
+            animateValue(document.getElementById('total-size'), 0, totalBytes, 1200, formatSize);
+            animateValue(document.getElementById('total-columns'), 0, totalColumns, 1100);
+            
+            // Update Category Counts
+            document.getElementById('count-gis').innerText = counts.gis;
+            document.getElementById('count-support').innerText = counts.support;
+            document.getElementById('count-admin').innerText = counts.admin;
+            document.getElementById('count-views').innerText = counts.views;
+            
+            // Update Quality Metrics
+            const completeness = Math.round((populatedCount / res.rows) * 100);
+            const avgCols = Math.round(totalColumns / res.rows);
+            const geoEnabled = counts.gis + counts.admin;
+            
+            setTimeout(() => {
+                document.getElementById('quality-completeness').textContent = completeness + '%';
+                document.getElementById('bar-completeness').style.width = completeness + '%';
+                
+                document.getElementById('quality-populated').textContent = populatedCount + '/' + res.rows;
+                document.getElementById('bar-populated').style.width = (populatedCount / res.rows * 100) + '%';
+                
+                document.getElementById('quality-avgcols').textContent = avgCols;
+                document.getElementById('bar-avgcols').style.width = Math.min(avgCols * 5, 100) + '%';
+                
+                document.getElementById('quality-geo').textContent = geoEnabled;
+                document.getElementById('bar-geo').style.width = (geoEnabled / res.rows * 100) + '%';
+            }, 500);
+
+            // Render initial views
+            renderTableList(allTables);
+            updateTreemap(allTables);
+            updateBarChart(allTables);
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSchemaModal();
+            if (e.key === '/' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

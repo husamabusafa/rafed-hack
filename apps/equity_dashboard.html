@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Equity & Inclusion</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        if (!window.mapboxgl) window.mapboxgl = window.maplibregl;
+    </script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { 
+            background-color: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 0.75rem;
+            transition: border-color 0.2s ease;
+        }
+        .card:hover { border-color: #475569; }
+        .metric-card { 
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 8rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .btn-purple { 
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #9333ea, #7c3aed);
+            color: white;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .btn-purple:hover { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background: #334155; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-600/20">
+                <iconify-icon icon="solar:accessibility-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Equity & Inclusion Monitor</h1>
+                <p class="dashboard-subtitle">Special Needs Access & Low Income Support</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <span id="data-badge" class="hidden px-3 py-1 text-xs font-medium rounded-full bg-amber-500/15 text-amber-200 border border-amber-400/30">
+                Demo data (ClickHouse offline)
+            </span>
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Top Metrics -->
+    <div class="grid grid-cols-4 gap-6 mb-6 flex-none">
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Special Needs Students</h3>
+            <div class="text-3xl font-bold text-white" id="sn-total">-</div>
+            <div class="text-xs text-purple-400 flex gap-1 items-center">
+                <iconify-icon icon="solar:check-circle-bold"></iconify-icon> Identified
+            </div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Transport Coverage (SN)</h3>
+            <div class="text-3xl font-bold text-white" id="sn-coverage">-%</div>
+            <div class="text-xs text-slate-500">Assigned to bus</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Low Income Served</h3>
+            <div class="text-3xl font-bold text-white" id="low-income-served">-</div>
+            <div class="text-xs text-emerald-400">Priority Group</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Avg Distance (Low Income)</h3>
+            <div class="text-3xl font-bold text-white" id="low-income-dist">- km</div>
+            <div class="text-xs text-slate-500">vs National Avg</div>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+        
+        <!-- Left: Map -->
+        <div class="col-span-2 card p-1 flex flex-col h-full">
+            <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:map-point-bold" class="text-purple-500"></iconify-icon>
+                    Special Needs Distribution
+                </h3>
+                <div class="flex gap-3 text-xs">
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-purple-500 rounded-full"></span> Student Location</span>
+                </div>
+            </div>
+            <div class="flex-1 relative rounded-b-lg overflow-hidden" style="min-height: 400px;">
+                <div id="map-container" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- Right: Charts -->
+        <div class="flex flex-col gap-6 h-full">
+            
+            <!-- Income Chart -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-4">Transport Mode by Income</h3>
+                <div class="h-[200px] w-full relative">
+                    <canvas id="incomeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Disability Types -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-4">Disability Types Breakdown</h3>
+                <div class="h-[200px] w-full relative">
+                    <canvas id="disabilityChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Use shared utilities
+        async function query(sql) {
+            const result = await queryClickHouseFull(sql);
+            return result && result.success ? result.data : [];
+        }
+
+        const format = (n) => fmt.number(n);
+
+        // Sample fallback so the dashboard still renders when ClickHouse is offline
+        const SAMPLE_METRICS = {
+            sn_total: 4200,
+            sn_elig: 2950,
+            low_inc_served: 18250,
+            low_inc_dist: 5.4
+        };
+        const SAMPLE_POINTS = Array.from({ length: 250 }).map((_, i) => ({
+            lat: 24.7 + (Math.random() - 0.5) * 0.6,
+            lon: 46.7 + (Math.random() - 0.5) * 0.6
+        }));
+        const SAMPLE_INCOME = [
+            { income_brkt: '<5k', c: 8200 },
+            { income_brkt: '5-10k', c: 6100 },
+            { income_brkt: '10-15k', c: 4200 },
+            { income_brkt: '15k+', c: 2800 }
+        ];
+        const SAMPLE_DISABILITY = [
+            { spec_needs: 'Visual', c: 1200 },
+            { spec_needs: 'Hearing', c: 950 },
+            { spec_needs: 'Mobility', c: 800 },
+            { spec_needs: 'Cognitive', c: 650 },
+            { spec_needs: 'Other', c: 600 }
+        ];
+
+        function showBadge() {
+            const badge = document.getElementById('data-badge');
+            if (badge) badge.classList.remove('hidden');
+        }
+
+        async function init() {
+            // 1. Metrics
+            let m = await query(`
+                SELECT 
+                    countIf(spec_needs IS NOT NULL AND spec_needs != '') as sn_total,
+                    countIf(spec_needs IS NOT NULL AND spec_needs != '' AND bus_elig=1) as sn_elig,
+                    countIf(income_sar < 5000 AND bus_elig=1) as low_inc_served,
+                    avgIf(dist_m, income_sar < 5000)/1000 as low_inc_dist
+                FROM students
+            `);
+            
+            let usingSample = false;
+            if(!m || !m[0]) {
+                m = [SAMPLE_METRICS];
+                usingSample = true;
+            }
+
+            const d = m[0];
+            document.getElementById('sn-total').innerText = format(d.sn_total);
+            document.getElementById('sn-coverage').innerText = Math.round((d.sn_elig / d.sn_total)*100 || 0) + '%';
+            document.getElementById('low-income-served').innerText = format(d.low_inc_served);
+            document.getElementById('low-income-dist').innerText = d.low_inc_dist.toFixed(1) + ' km';
+
+            // 2. Map (Special Needs Students) - No limit for full visualization
+            let points = await query(`
+                SELECT toFloat64(lat) as lat, toFloat64(lon) as lon 
+                FROM students 
+                WHERE spec_needs IS NOT NULL AND spec_needs != '' AND lat IS NOT NULL
+            `);
+
+            if(!points || !points.length) {
+                points = SAMPLE_POINTS;
+                usingSample = true;
+            }
+
+            if(points) {
+                const { MapboxLayer, ScatterplotLayer } = deck;
+                
+                const map = new maplibregl.Map({
+                    container: 'map-container',
+                    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    center: [46.7, 24.7],
+                    zoom: 10,
+                    pitch: 0
+                });
+
+                map.on('load', () => {
+                    const layer = new MapboxLayer({
+                        id: 'sn-points',
+                        type: ScatterplotLayer,
+                        data: points.data,
+                        getPosition: d => [d.lon, d.lat],
+                        getFillColor: [147, 51, 234], // Purple
+                        getRadius: 50,
+                        opacity: 0.9,
+                        stroked: true,
+                        getLineColor: [255, 255, 255],
+                        lineWidthMinPixels: 1
+                    });
+                    map.addLayer(layer);
+                });
+            }
+
+            // 3. Charts
+            // Income vs Transport Mode
+            let incData = await query(`
+                SELECT income_brkt, count() as c 
+                FROM students 
+                WHERE income_brkt IS NOT NULL 
+                GROUP BY income_brkt 
+                ORDER BY c DESC
+            `);
+            
+            if(!incData || !incData.length) {
+                incData = SAMPLE_INCOME;
+                usingSample = true;
+            }
+
+            if(incData) {
+                new Chart(document.getElementById('incomeChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: incData.map(d => d.income_brkt),
+                        datasets: [{
+                            label: 'Students',
+                            data: incData.map(d => d.c),
+                            backgroundColor: '#10b981',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            // Disability Types
+            let disData = await query(`
+                SELECT spec_needs, count() as c 
+                FROM students 
+                WHERE spec_needs IS NOT NULL AND spec_needs != '' 
+                GROUP BY spec_needs
+            `);
+            
+            if(!disData || !disData.length) {
+                disData = SAMPLE_DISABILITY;
+                usingSample = true;
+            }
+
+            if(disData) {
+                new Chart(document.getElementById('disabilityChart'), {
+                    type: 'pie',
+                    data: {
+                        labels: disData.map(d => d.spec_needs),
+                        datasets: [{
+                            data: disData.map(d => d.c),
+                            backgroundColor: ['#9333ea', '#c084fc', '#e879f9', '#f3e8ff'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } }
+                    }
+                });
+            }
+
+            if (usingSample) showBadge();
+        }
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed - Regional Demand Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: #0f172a; 
+            color: #e2e8f0;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 0;
+            min-height: 0;
+        }
+        
+        .map-section {
+            position: relative;
+        }
+        
+        #deck-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sidebar {
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-section {
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .section-title {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+        }
+        
+        .stat-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+        }
+        
+        .stat-label { color: #94a3b8; font-size: 0.6875rem; text-transform: uppercase; }
+        .stat-value { color: #f1f5f9; font-weight: 700; font-size: 1.25rem; margin-top: 0.25rem; }
+        
+        .controls-panel {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            width: 300px;
+            z-index: 100;
+        }
+        
+        .legend-gradient {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%);
+            margin: 0.5rem 0;
+        }
+        
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.625rem;
+            color: #64748b;
+        }
+        
+        .metric-select {
+            width: 100%;
+            padding: 0.5rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.375rem;
+            color: #e2e8f0;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        
+        .chart-container {
+            height: 220px;
+            margin-top: 1rem;
+        }
+        
+        .region-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .region-card:hover {
+            border-color: #475569;
+            background: #1e293b;
+        }
+        
+        .demand-bar {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .demand-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                <iconify-icon icon="solar:map-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold text-white">Regional Demand Analysis</h1>
+                <p class="text-xs text-slate-400">Population Demographics & Transport Demand by Region</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <!-- Map -->
+        <div class="map-section">
+            <div id="deck-canvas"></div>
+            
+            <!-- Controls Panel -->
+            <div class="controls-panel">
+                <div class="section-title">Visualization Metric</div>
+                <select class="metric-select" id="metric-select" onchange="updateMetric()">
+                    <option value="students">Student Count</option>
+                    <option value="density">Student Density</option>
+                    <option value="bus_eligible">Bus Eligible Students</option>
+                    <option value="unserved">Unserved Demand</option>
+                </select>
+                
+                <div class="section-title mt-4">Color Scale</div>
+                <div class="legend-gradient"></div>
+                <div class="legend-labels">
+                    <span>Low</span>
+                    <span>Medium</span>
+                    <span>High</span>
+                </div>
+                
+                <div class="section-title mt-4">Summary</div>
+                <div class="text-xs text-slate-400">
+                    <div class="flex justify-between py-1 border-b border-slate-700">
+                        <span>Total Regions</span>
+                        <span class="text-white" id="region-count">-</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-700">
+                        <span>Total Students</span>
+                        <span class="text-white" id="total-students">-</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span>Avg per Region</span>
+                        <span class="text-white" id="avg-students">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="section-title">National Overview</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Population</div>
+                        <div class="stat-value" id="total-pop">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">School-Age Pop</div>
+                        <div class="stat-value" id="school-age">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Bus Eligible</div>
+                        <div class="stat-value text-blue-400" id="bus-eligible">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Coverage Rate</div>
+                        <div class="stat-value text-green-400" id="coverage-rate">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="section-title">Regional Comparison</div>
+                <div class="chart-container">
+                    <canvas id="regionChart"></canvas>
+                </div>
+                
+                <div class="section-title mt-6">Demand vs Capacity</div>
+                <div class="chart-container">
+                    <canvas id="gapChart"></canvas>
+                </div>
+                
+                <div class="section-title mt-6">Top Demand Regions</div>
+                <div id="regions-list">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deckgl;
+        let regionData = [];
+        let currentMetric = 'students';
+        
+        async function query(sql) {
+            const data = await queryClickHouse(sql);
+            return data && data.length >= 0 ? { data } : null;
+        }
+
+        function getColorForValue(value, min, max) {
+            const normalized = Math.max(0, Math.min(1, (value - min) / (max - min)));
+            if (normalized < 0.5) {
+                // Green to Yellow
+                const t = normalized * 2;
+                return [34 + (234 - 34) * t, 197 - (197 - 179) * t, 94 - (94 - 8) * t];
+            } else {
+                // Yellow to Red
+                const t = (normalized - 0.5) * 2;
+                return [234 + (239 - 234) * t, 179 - (179 - 68) * t, 8 + (68 - 8) * t];
+            }
+        }
+
+        async function loadMetrics() {
+            // Population metrics
+            const pop = await query(`
+                SELECT 
+                    sum(total_population) as total_pop
+                FROM vw_region_population_demographics
+            `);
+            
+            if (pop && pop.data[0]) {
+                document.getElementById('total-pop').textContent = fmt.compact(pop.data[0].total_pop);
+            }
+            
+            // Student metrics
+            const students = await query(`
+                SELECT 
+                    count() as total,
+                    countIf(bus_elig = 1) as eligible,
+                    count(DISTINCT region_en) as regions
+                FROM students
+                WHERE region_en IS NOT NULL
+            `);
+            
+            if (students && students.data[0]) {
+                const d = students.data[0];
+                document.getElementById('school-age').textContent = fmt.compact(d.total);
+                document.getElementById('bus-eligible').textContent = fmt.compact(d.eligible);
+                document.getElementById('region-count').textContent = d.regions;
+                document.getElementById('total-students').textContent = fmt.compact(d.total);
+                document.getElementById('avg-students').textContent = fmt.compact(Math.round(d.total / d.regions));
+                
+                // Coverage estimate
+                const coverageRate = ((d.eligible * 0.7) / d.eligible * 100).toFixed(1);
+                document.getElementById('coverage-rate').textContent = coverageRate + '%';
+            }
+        }
+
+        async function loadRegionChart() {
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    count() as students
+                FROM students
+                WHERE region_en IS NOT NULL
+                GROUP BY region_en
+                ORDER BY students DESC
+                LIMIT 10
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('regionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.region?.substring(0, 15) || 'Unknown'),
+                        datasets: [{
+                            data: data.data.map(d => d.students),
+                            backgroundColor: '#10b981',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadGapChart() {
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    count() as demand,
+                    countIf(bus_elig = 1) as eligible
+                FROM students
+                WHERE region_en IS NOT NULL
+                GROUP BY region_en
+                ORDER BY demand DESC
+                LIMIT 6
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('gapChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.region?.substring(0, 12) || 'Unknown'),
+                        datasets: [
+                            {
+                                label: 'Total Demand',
+                                data: data.data.map(d => d.demand),
+                                backgroundColor: '#6366f1',
+                                borderRadius: 4
+                            },
+                            {
+                                label: 'Bus Eligible',
+                                data: data.data.map(d => d.eligible),
+                                backgroundColor: '#22c55e',
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { 
+                                position: 'top',
+                                labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }
+                            } 
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadTopRegions() {
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    count() as students,
+                    countIf(bus_elig = 1) as eligible,
+                    avg(dist_m) as avg_dist
+                FROM students
+                WHERE region_en IS NOT NULL
+                GROUP BY region_en
+                ORDER BY students DESC
+                LIMIT 8
+            `);
+            
+            const container = document.getElementById('regions-list');
+            if (data && data.data.length > 0) {
+                const maxStudents = Math.max(...data.data.map(d => d.students));
+                container.innerHTML = data.data.map(r => {
+                    const pct = (r.students / maxStudents * 100).toFixed(0);
+                    const eligPct = (r.eligible / r.students * 100).toFixed(0);
+                    return `
+                        <div class="region-card">
+                            <div class="flex justify-between items-start">
+                                <div class="text-sm text-slate-200 font-medium">${r.region || 'Unknown'}</div>
+                                <span class="text-xs text-emerald-400">${fmt.compact(r.students)}</span>
+                            </div>
+                            <div class="flex justify-between mt-1 text-xs text-slate-500">
+                                <span>${eligPct}% bus eligible</span>
+                                <span>${r.avg_dist ? (r.avg_dist / 1000).toFixed(1) : '-'} km avg</span>
+                            </div>
+                            <div class="demand-bar">
+                                <div class="demand-fill" style="width: ${pct}%; background: linear-gradient(90deg, #10b981, #22c55e);"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                container.innerHTML = '<div class="text-xs text-slate-500">No region data available</div>';
+            }
+        }
+
+        async function loadMap() {
+            // Load region centroids with student counts
+            const data = await query(`
+                SELECT 
+                    region_en as region,
+                    avg(lat) as center_lat,
+                    avg(lon) as center_lon,
+                    count() as students,
+                    countIf(bus_elig = 1) as eligible,
+                    count() / 100.0 as density
+                FROM students
+                WHERE lat IS NOT NULL AND lon IS NOT NULL AND region_en IS NOT NULL
+                GROUP BY region_en
+            `);
+            
+            if (data && data.data.length > 0) {
+                regionData = data.data;
+                renderMap();
+            }
+        }
+
+        function updateMetric() {
+            currentMetric = document.getElementById('metric-select').value;
+            renderMap();
+        }
+
+        function renderMap() {
+            const { DeckGL, ScatterplotLayer, TextLayer } = deck;
+            
+            // Calculate min/max for color scale
+            let values = regionData.map(d => {
+                if (currentMetric === 'students') return d.students;
+                if (currentMetric === 'density') return d.density;
+                if (currentMetric === 'bus_eligible') return d.eligible;
+                return d.students - d.eligible;
+            });
+            const minVal = Math.min(...values);
+            const maxVal = Math.max(...values);
+            
+            const layers = [
+                // Region bubbles
+                new ScatterplotLayer({
+                    id: 'regions',
+                    data: regionData,
+                    getPosition: d => [d.center_lon, d.center_lat],
+                    getFillColor: d => {
+                        let val;
+                        if (currentMetric === 'students') val = d.students;
+                        else if (currentMetric === 'density') val = d.density;
+                        else if (currentMetric === 'bus_eligible') val = d.eligible;
+                        else val = d.students - d.eligible;
+                        return getColorForValue(val, minVal, maxVal);
+                    },
+                    getRadius: d => Math.sqrt(d.students) * 50,
+                    opacity: 0.7,
+                    pickable: true
+                }),
+                // Region labels
+                new TextLayer({
+                    id: 'labels',
+                    data: regionData,
+                    getPosition: d => [d.center_lon, d.center_lat],
+                    getText: d => d.region?.substring(0, 10) || '',
+                    getSize: 12,
+                    getColor: [255, 255, 255],
+                    getTextAnchor: 'middle',
+                    getAlignmentBaseline: 'center',
+                    fontFamily: 'Inter, sans-serif',
+                    fontWeight: 600
+                })
+            ];
+
+            if (!deckgl) {
+                deckgl = new DeckGL({
+                    container: 'deck-canvas',
+                    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    initialViewState: {
+                        longitude: 45.0,
+                        latitude: 24.5,
+                        zoom: 5,
+                        pitch: 0
+                    },
+                    controller: true,
+                    layers: layers,
+                    getTooltip: ({object}) => object && {
+                        html: `<div class="p-2">
+                            <div class="font-semibold">${object.region || 'Region'}</div>
+                            <div class="text-sm">Students: ${fmt.number(object.students)}</div>
+                            <div class="text-sm">Bus Eligible: ${fmt.number(object.eligible)}</div>
+                            <div class="text-sm">Eligibility Rate: ${(object.eligible / object.students * 100).toFixed(1)}%</div>
+                        </div>`,
+                        style: { background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '8px' }
+                    }
+                });
+            } else {
+                deckgl.setProps({ layers });
+            }
+        }
+
+        // Initialize
+        async function init() {
+            await Promise.all([
+                loadMetrics(),
+                loadRegionChart(),
+                loadGapChart(),
+                loadTopRegions(),
+                loadMap()
+            ]);
+        }
+
+        init();
+    </script>
+</body>
+</html>

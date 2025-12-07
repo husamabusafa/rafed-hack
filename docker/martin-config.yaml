@@ -1,0 +1,3 @@
+# Martin minimal config
+postgres:
+  connection_string: postgres://user:password@postgres:5432/gis_db

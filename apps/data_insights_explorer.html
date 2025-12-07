@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Data Insights Explorer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; transition: all 0.2s; }
+        .card:hover { border-color: #60a5fa; box-shadow: 0 10px 30px -10px rgba(96, 165, 250, 0.2); }
+        .tab-btn { @apply px-6 py-3 font-medium text-sm text-slate-400 border-b-2 border-transparent hover:text-white transition-colors; }
+        .tab-btn.active { @apply text-blue-400 border-blue-500; }
+        .table-row { @apply border-b border-slate-700 hover:bg-slate-800/50 transition-colors; }
+        .table-cell { @apply px-4 py-3 text-sm; }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
+                <iconify-icon icon="solar:graph-up-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Data Insights Explorer</h1>
+                <p class="dashboard-subtitle">Deep dive into Reports, Views, and GIS Layers</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-700 mb-8">
+        <button class="tab-btn active" onclick="switchTab('reports')">Analytic Reports (12)</button>
+        <button class="tab-btn" onclick="switchTab('views')">Analytics Views (22)</button>
+        <button class="tab-btn" onclick="switchTab('gis')">Geospatial Layers (5)</button>
+    </div>
+
+    <!-- Content Area -->
+    <div id="content-area" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- JS Injected -->
+    </div>
+
+    <script>
+        const CH_API = 'http://localhost:8155';
+        const AUTH = 'user=viewer&password=rafed_view&max_result_rows=0';
+
+        async function query(sql) {
+            try {
+                const r = await fetch(`${CH_API}/?${AUTH}&query=${encodeURIComponent(sql + ' FORMAT JSON')}`);
+                return await r.json();
+            } catch(e) { console.error(e); return null; }
+        }
+
+        const formatNum = (n) => Number(n).toLocaleString();
+
+        // --- Tab Logic ---
+        window.switchTab = (tab) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
+            
+            if(tab === 'reports') renderReports();
+            if(tab === 'views') renderViews();
+            if(tab === 'gis') renderGIS();
+        };
+
+        // --- Renderers ---
+
+        async function renderReports() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = '<div class="col-span-3 text-center text-slate-500 animate-pulse">Loading Reports Metadata...</div>';
+
+            // Fetch Report Tables
+            const tables = await query(`
+                SELECT name, total_rows, total_bytes 
+                FROM system.tables 
+                WHERE database='default' AND name LIKE 'support_data_report%'
+                ORDER BY name
+            `);
+
+            if(!tables || !tables.data) return;
+
+            let html = '';
+            
+            // Process each report
+            for (const t of tables.data) {
+                // Get sample data or summary stats for each report
+                // This is heavy, so we'll do it lightly
+                const cleanName = t.name.replace('support_data_', '').replace(/_/g, ' ').toUpperCase();
+                const rows = formatNum(t.total_rows);
+                
+                // Try to get column names
+                const desc = await query(`DESCRIBE ${t.name}`);
+                const columns = desc ? desc.data.map(c => c.name).slice(0, 5).join(', ') + '...' : 'N/A';
+
+                html += `
+                    <div class="card p-6 flex flex-col">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-purple-900/30 p-3 rounded-lg text-purple-400">
+                            <iconify-icon icon="solar:document-bold" class="text-2xl"></iconify-icon>
+                            </div>
+                            <span class="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-1 rounded">${rows} Rows</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-2 truncate" title="${cleanName}">${cleanName}</h3>
+                        <div class="text-xs text-slate-400 mb-4 h-10 overflow-hidden">
+                            Columns: <span class="text-slate-500">${columns}</span>
+                        </div>
+                        <div class="mt-auto pt-4 border-t border-slate-700/50 flex justify-between items-center">
+                            <button onclick="previewTable('${t.name}')" class="text-sm text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
+                                Preview Data <iconify-icon icon="solar:arrow-right-linear"></iconify-icon>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add a preview modal container if not exists
+            if(!document.getElementById('preview-modal')) {
+                document.body.insertAdjacentHTML('beforeend', `
+                    <div id="preview-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+                        <div class="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-6xl h-[80vh] flex flex-col shadow-2xl">
+                            <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                                <h3 class="text-xl font-bold text-white" id="modal-title">Preview</h3>
+                                <button onclick="document.getElementById('preview-modal').classList.add('hidden')" class="text-slate-400 hover:text-white">
+                                    <iconify-icon icon="solar:close-circle-linear" class="text-2xl"></iconify-icon>
+                                </button>
+                            </div>
+                            <div class="overflow-auto flex-1 p-4" id="modal-content"></div>
+                        </div>
+                    </div>
+                `);
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function renderViews() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = '<div class="col-span-3 text-center text-slate-500 animate-pulse">Loading Views Metadata...</div>';
+
+            const tables = await query(`
+                SELECT name, total_rows 
+                FROM system.tables 
+                WHERE database='default' AND (name LIKE 'vw_%' OR name LIKE '%_view')
+                ORDER BY name
+            `);
+
+            if(!tables || !tables.data) return;
+
+            let html = '';
+            for(const t of tables.data) {
+                const cleanName = t.name;
+                const rows = formatNum(t.total_rows);
+                
+                html += `
+                    <div class="card p-6 border-l-4 border-l-pink-500">
+                        <div class="flex justify-between mb-2">
+                            <h3 class="font-bold text-white truncate w-3/4" title="${cleanName}">${cleanName}</h3>
+                            <iconify-icon icon="solar:widget-2-bold" class="text-pink-500 text-xl"></iconify-icon>
+                        </div>
+                        <p class="text-sm text-slate-400 mb-4">Optimized Analytic View</p>
+                        <div class="flex items-center justify-between mt-4">
+                            <span class="text-xs font-mono bg-slate-800 text-pink-200 px-2 py-1 rounded">${rows} Records</span>
+                            <button onclick="previewTable('${t.name}')" class="text-xs text-slate-300 hover:text-white border border-slate-600 px-3 py-1 rounded hover:bg-slate-700">
+                                Query
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        async function renderGIS() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = '<div class="col-span-3 text-center text-slate-500 animate-pulse">Loading GIS Layers...</div>';
+
+            const layers = ['students', 'schools', 'school_routes', 'buildings', 'school_ors_isochrones_1km'];
+            let html = '';
+
+            for(const name of layers) {
+                const stat = await query(`SELECT count() as c FROM ${name}`);
+                const count = stat ? formatNum(stat.data[0].c) : '-';
+                
+                // Get geometry type if possible (hacky check)
+                let type = 'Point';
+                if(name.includes('route') || name.includes('isochrone')) type = 'Polygon/Line';
+
+                html += `
+                    <div class="card p-6 relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <iconify-icon icon="solar:map-bold" class="text-9xl text-blue-500"></iconify-icon>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-1 capitalize">${name.replace(/_/g, ' ')}</h3>
+                        <div class="text-blue-400 text-sm font-mono mb-6">${type} Layer</div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="bg-slate-800/50 p-3 rounded">
+                                <div class="text-xs text-slate-500 uppercase">Feature Count</div>
+                                <div class="text-xl font-bold text-white">${count}</div>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded">
+                                <div class="text-xs text-slate-500 uppercase">Format</div>
+                                <div class="text-xl font-bold text-white">Native</div>
+                            </div>
+                        </div>
+
+                        <button onclick="previewTable('${name}')" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                            <iconify-icon icon="mdi:table-eye"></iconify-icon> View Data Attributes
+                        </button>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        // --- Global Functions ---
+        window.previewTable = async (table) => {
+            const modal = document.getElementById('preview-modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            
+            title.innerText = `Preview: ${table}`;
+            content.innerHTML = '<div class="text-center p-8"><iconify-icon icon="mdi:loading" class="text-4xl animate-spin text-blue-500"></iconify-icon></div>';
+            modal.classList.remove('hidden');
+
+            const data = await query(`SELECT * FROM ${table} LIMIT 50`);
+            
+            if(!data || !data.data || data.data.length === 0) {
+                content.innerHTML = '<div class="text-center p-8 text-slate-400">No data found.</div>';
+                return;
+            }
+
+            // Build Table
+            const keys = Object.keys(data.data[0]);
+            let tableHtml = `
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-800 text-slate-200 sticky top-0">
+                        <tr>${keys.map(k => `<th class="px-4 py-3 text-xs uppercase font-bold border-b border-slate-600 whitespace-nowrap">${k}</th>`).join('')}</tr>
+                    </thead>
+                    <tbody class="text-slate-300">
+                        ${data.data.map(row => `
+                            <tr class="table-row">
+                                ${keys.map(k => `<td class="table-cell whitespace-nowrap max-w-xs truncate" title="${row[k]}">${row[k]}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            content.innerHTML = tableHtml;
+        };
+
+        // Init
+        switchTab('reports');
+
+    </script>
+</body>
+</html>

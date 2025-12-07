@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رافد - تحليل النقل المدرسي | Rafed Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #f8fafc; }
+        .card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-6; }
+        .stat-value { @apply text-3xl font-bold text-slate-800; }
+        .stat-label { @apply text-sm text-slate-500 mt-1; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <!-- Top Bar -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            </div>
+            <h1 class="text-xl font-bold text-slate-800">لوحة معلومات النقل المدرسي - رافد</h1>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="refreshDashboard()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
+                تحديث البيانات
+            </button>
+            <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition">
+                تصدير التقرير
+            </button>
+        </div>
+    </nav>
+
+    <main class="p-6 max-w-[1600px] mx-auto space-y-6">
+        
+        <!-- KPI Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="stat-value" id="total-students">-</div>
+                        <div class="stat-label">إجمالي الطلاب</div>
+                    </div>
+                    <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-emerald-600 font-medium">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                    زيادة ٥٪ عن الشهر الماضي
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="stat-value" id="bus-eligible">-</div>
+                        <div class="stat-label">المؤهلين للنقل</div>
+                    </div>
+                    <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    </div>
+                </div>
+                <div class="mt-4 text-xs text-slate-500" id="eligibility-rate">
+                    نسبة الاستحقاق: -٪
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="stat-value" id="total-schools">-</div>
+                        <div class="stat-label">عدد المدارس</div>
+                    </div>
+                    <div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    </div>
+                </div>
+                <div class="mt-4 text-xs text-slate-500">
+                    تغطي ١٣ منطقة إدارية
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="stat-value text-rose-600" id="unmet-demand">-</div>
+                        <div class="stat-label">قائمة الانتظار</div>
+                    </div>
+                    <div class="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    </div>
+                </div>
+                <div class="mt-4 text-xs text-rose-600 font-medium">
+                    يتطلب تدخل عاجل
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Map Section -->
+            <div class="lg:col-span-2 card p-0 overflow-hidden h-[600px] relative flex flex-col">
+                <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
+                    <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 7m0 13V7"></path></svg>
+                        الخريطة التفاعلية للكثافة السكانية
+                    </h2>
+                    <div class="flex gap-2 text-xs font-medium">
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded">طلاب (أزرق)</span>
+                        <span class="px-2 py-1 bg-pink-100 text-pink-700 rounded">طالبات (وردي)</span>
+                    </div>
+                </div>
+                <div id="map-container" class="flex-1 relative w-full h-full"></div>
+            </div>
+
+            <!-- Sidebar Charts -->
+            <div class="space-y-6">
+                <div class="card">
+                    <h3 class="font-bold text-slate-800 mb-4">توزيع الطلاب حسب الجنس</h3>
+                    <div class="relative h-48">
+                        <canvas id="genderChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="font-bold text-slate-800 mb-4">أعلى المناطق كثافة</h3>
+                    <div class="relative h-64">
+                        <canvas id="regionChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card bg-blue-600 text-white">
+                    <h3 class="font-bold text-lg mb-2">تصدير البيانات</h3>
+                    <p class="text-blue-100 text-sm mb-4">يمكنك تحميل البيانات المعروضة كملف CSV للتحليل المتقدم.</p>
+                    <button class="w-full py-2 bg-white text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-50 transition">
+                        تحميل البيانات (CSV)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Configuration
+        const CLICKHOUSE_URL = 'http://localhost:8155';
+        const CLICKHOUSE_USER = 'viewer';
+        const CLICKHOUSE_PASS = 'rafed_view';
+
+        // Helpers
+        const formatNumber = (num) => new Intl.NumberFormat('ar-SA').format(num);
+
+        // Data Fetcher
+        async function fetchClickHouse(query) {
+            try {
+                const url = `${CLICKHOUSE_URL}/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASS}&query=${encodeURIComponent(query + ' FORMAT JSON')}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Data fetch failed');
+                return await res.json();
+            } catch (error) {
+                console.error('Error:', error);
+                return null;
+            }
+        }
+
+        // Dashboard Logic
+        async function initDashboard() {
+            
+            // 1. Fetch KPIs
+            const kpiQuery = `
+                SELECT 
+                    (SELECT count() FROM students) as total_students,
+                    (SELECT sum(bus_elig) FROM students) as eligible_students,
+                    (SELECT count() FROM schools) as total_schools,
+                    (SELECT count() FROM unassigned_students) as unmet_demand
+            `;
+            
+            const kpiData = await fetchClickHouse(kpiQuery);
+            
+            if (kpiData && kpiData.data && kpiData.data[0]) {
+                const row = kpiData.data[0];
+                document.getElementById('total-students').innerText = formatNumber(row.total_students);
+                document.getElementById('bus-eligible').innerText = formatNumber(row.eligible_students);
+                document.getElementById('total-schools').innerText = formatNumber(row.total_schools);
+                document.getElementById('unmet-demand').innerText = formatNumber(row.unmet_demand);
+                
+                const rate = Math.round((row.eligible_students / row.total_students) * 100);
+                document.getElementById('eligibility-rate').innerText = `نسبة الاستحقاق: ${formatNumber(rate)}٪`;
+            }
+
+            // 2. Gender Chart
+            const genderData = await fetchClickHouse('SELECT gender, count() as c FROM students GROUP BY gender');
+            if (genderData) {
+                const ctx = document.getElementById('genderChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['ذكور', 'إناث'],
+                        datasets: [{
+                            data: genderData.data.map(d => d.c),
+                            backgroundColor: ['#3b82f6', '#ec4899'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right', rtl: true, labels: { font: { family: 'Tajawal' } } }
+                        }
+                    }
+                });
+            }
+
+            // 3. Region Chart
+            const regionData = await fetchClickHouse('SELECT region_ar, count() as c FROM students GROUP BY region_ar ORDER BY c DESC LIMIT 5');
+            if (regionData) {
+                const ctx = document.getElementById('regionChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: regionData.data.map(d => d.region_ar),
+                        datasets: [{
+                            label: 'عدد الطلاب',
+                            data: regionData.data.map(d => d.c),
+                            backgroundColor: '#6366f1',
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, grid: { display: true, drawBorder: false } },
+                            x: { grid: { display: false }, ticks: { font: { family: 'Tajawal' } } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            // 4. Map Initialization (Deck.gl)
+            initMap();
+        }
+
+        async function initMap() {
+            const { DeckGL, ScatterplotLayer } = deck;
+            
+            // Fetch limited points for demo performance (Riyadh Focus)
+            const points = await fetchClickHouse('SELECT toFloat64(lat) as lat, toFloat64(lon) as lon, gender FROM students WHERE lat BETWEEN 24.0 AND 25.5 AND lon BETWEEN 46.0 AND 47.5 LIMIT 25000');
+            
+            if (!points || !points.data) return;
+
+            new DeckGL({
+                container: 'map-container',
+                mapStyle: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json', // Light map for clean look
+                initialViewState: {
+                    longitude: 46.7,
+                    latitude: 24.7,
+                    zoom: 10,
+                    pitch: 0,
+                    bearing: 0
+                },
+                controller: true,
+                layers: [
+                    new ScatterplotLayer({
+                        id: 'students-layer',
+                        data: points.data,
+                        getPosition: d => [d.lon, d.lat],
+                        getFillColor: d => d.gender === 'F' ? [236, 72, 153, 200] : [59, 130, 246, 200],
+                        getRadius: 30,
+                        radiusMinPixels: 2,
+                        opacity: 0.6,
+                        stroked: true,
+                        lineWidthMinPixels: 0,
+                    })
+                ]
+            });
+        }
+
+        // Initialize
+        initDashboard();
+        window.refreshDashboard = initDashboard;
+
+    </script>
+</body>
+</html>

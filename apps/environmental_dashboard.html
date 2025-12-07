@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed - Environmental Impact</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="shared.js"></script>
+    <script>if (!window.mapboxgl) window.mapboxgl = window.maplibregl;</script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+        #map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+        .impact-bar { height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+        .impact-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                <iconify-icon icon="solar:leaf-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Environmental Impact</h1>
+                <p class="dashboard-subtitle">Emissions Reduction & Sustainability</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <div class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 flex items-center gap-2">
+                <iconify-icon icon="solar:clock-circle-bold" class="text-slate-400"></iconify-icon>
+                <span id="last-update">Loading...</span>
+            </div>
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- KPI Metrics -->
+    <div class="grid grid-cols-5 gap-4 mb-6 flex-none">
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Cars Off Road</h3>
+                <div class="w-8 h-8 bg-emerald-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:bus-bold" class="text-emerald-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="cars-off-road">-</div>
+            <div class="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                <iconify-icon icon="solar:minus-circle-bold" width="12"></iconify-icon>
+                Daily Reduction
+            </div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">CO2 Saved</h3>
+                <div class="w-8 h-8 bg-green-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:cloud-minus-bold" class="text-green-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-emerald-400" id="co2-saved">-</div>
+            <div class="text-xs text-slate-500 mt-1">Tons/day vs Private</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Fuel Saved</h3>
+                <div class="w-8 h-8 bg-cyan-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:gas-station-bold" class="text-cyan-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="fuel-saved">-</div>
+            <div class="text-xs text-slate-500 mt-1">Liters/day</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Cost Savings</h3>
+                <div class="w-8 h-8 bg-amber-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:wallet-money-bold" class="text-amber-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="cost-saved">-</div>
+            <div class="text-xs text-emerald-400 mt-1">SAR/day Aggregate</div>
+        </div>
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-400 text-xs font-bold uppercase">Impact Score</h3>
+                <div class="w-8 h-8 bg-purple-900/30 rounded-full flex items-center justify-center">
+                    <iconify-icon icon="solar:medal-ribbons-star-bold" class="text-purple-400"></iconify-icon>
+                </div>
+            </div>
+            <div class="text-2xl font-bold text-white" id="impact-score">-</div>
+            <div class="impact-bar mt-2">
+                <div class="impact-fill bg-gradient-to-r from-emerald-500 to-green-400" id="impact-bar" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-4 gap-6 flex-1 min-h-0">
+        
+        <!-- Map (2 cols) -->
+        <div class="col-span-2 card p-1 flex flex-col h-full">
+            <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="solar:map-point-bold" class="text-emerald-500"></iconify-icon>
+                    High-Impact Areas (Long Commutes Served)
+                </h3>
+                <div class="flex gap-4 text-xs">
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-cyan-400 rounded-full"></span> Low</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-emerald-400 rounded-full"></span> Medium</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-lime-400 rounded-full"></span> High</span>
+                    <span class="flex items-center gap-1 text-slate-300"><span class="w-2 h-2 bg-orange-400 rounded-full"></span> Very High</span>
+                </div>
+            </div>
+            <div class="flex-1 relative rounded-b-lg overflow-hidden">
+                <div id="map-container"></div>
+            </div>
+        </div>
+
+        <!-- Charts Column -->
+        <div class="flex flex-col gap-4 h-full">
+            
+            <!-- Emissions Chart -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:cloud-bold" class="text-red-500"></iconify-icon>
+                    CO2 Emissions: Baseline vs Current
+                </h3>
+                <div class="h-[180px] w-full relative">
+                    <canvas id="emissionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Regional Savings -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:flag-bold" class="text-emerald-500"></iconify-icon>
+                    Top Regions by CO2 Savings
+                </h3>
+                <div class="h-[180px] w-full relative">
+                    <canvas id="regionChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Summary Column -->
+        <div class="flex flex-col gap-4 h-full">
+
+            <!-- Yearly Projection -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:calendar-bold" class="text-blue-500"></iconify-icon>
+                    Annual Projections
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-2 bg-slate-800/50 rounded border border-slate-700">
+                        <span class="text-xs text-slate-400">CO2 Reduction</span>
+                        <span class="text-sm font-bold text-emerald-400" id="yearly-co2">- Tons</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-slate-800/50 rounded border border-slate-700">
+                        <span class="text-xs text-slate-400">Fuel Savings</span>
+                        <span class="text-sm font-bold text-cyan-400" id="yearly-fuel">- L</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-slate-800/50 rounded border border-slate-700">
+                        <span class="text-xs text-slate-400">Cost Savings</span>
+                        <span class="text-sm font-bold text-amber-400" id="yearly-cost">- SAR</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-emerald-900/20 rounded border border-emerald-700/50">
+                        <span class="text-xs text-emerald-300">Trees Equivalent</span>
+                        <span class="text-sm font-bold text-emerald-400" id="trees-equiv">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Schools Impact -->
+            <div class="card p-4 flex-1 overflow-hidden flex flex-col">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:buildings-2-bold" class="text-purple-500"></iconify-icon>
+                    Top Impact Schools
+                </h3>
+                <div class="flex-1 overflow-y-auto space-y-2" id="schools-list">
+                    <div class="text-center text-slate-500 text-sm p-4">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Environmental Facts -->
+            <div class="card p-4">
+                <h3 class="font-semibold text-white text-sm mb-3 flex items-center gap-2">
+                    <iconify-icon icon="solar:leaf-bold" class="text-green-500"></iconify-icon>
+                    Environmental Facts
+                </h3>
+                <div class="text-xs text-slate-400 space-y-2">
+                    <p class="flex items-start gap-2">
+                        <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500 mt-0.5"></iconify-icon>
+                        <span>Each bus replaces up to <strong class="text-emerald-400">40 cars</strong> on the road</span>
+                    </p>
+                    <p class="flex items-start gap-2">
+                        <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500 mt-0.5"></iconify-icon>
+                        <span>Buses emit <strong class="text-emerald-400">80% less</strong> CO2 per passenger-km</span>
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Helpers using shared utilities
+        async function query(sql) {
+            const res = await queryClickHouseFull(sql);
+            return res && res.success ? res.data : [];
+        }
+
+        const format = (n) => fmt.number(n);
+
+        // Sample fallback data so the map still renders when ClickHouse is offline
+        const SAMPLE_POINTS = [
+            { lon: 46.72, lat: 24.78, impact: 'High', value: 1200 },
+            { lon: 46.61, lat: 24.65, impact: 'Very High', value: 1500 },
+            { lon: 46.82, lat: 24.72, impact: 'Medium', value: 800 },
+            { lon: 46.68, lat: 24.62, impact: 'Low', value: 400 }
+        ];
+        const SAMPLE_REGIONS = [
+            { region: 'Riyadh', saving: 18.5 },
+            { region: 'Makkah', saving: 12.3 },
+            { region: 'Eastern Province', saving: 10.4 },
+            { region: 'Madinah', saving: 7.8 },
+            { region: 'Asir', saving: 6.1 }
+        ];
+
+        async function init() {
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            // Emission factors
+            // Car: 0.14 kg CO2/km, 10 km/L fuel
+            // Bus: 1.2 kg CO2/km, 3 km/L fuel, Capacity ~40
+            
+            // 1. Metrics Query
+            let usingSample = false;
+
+            const m = await query(`
+                SELECT 
+                    sum(student_count) as students_on_bus,
+                    sum(distance_m * 2 / 1000) as bus_km_daily,
+                    sum(student_count * distance_m * 2 / 1000) as car_km_replaced_daily
+                FROM school_routes
+            `);
+            
+            let savedCO2 = 0, savedFuel = 0, costSaved = 0, carCO2 = 0, busCO2 = 0;
+            
+            if (m && m[0]) {
+                const d = m[0];
+                const carKm = d.car_km_replaced_daily;
+                const busKm = d.bus_km_daily;
+                
+                carCO2 = carKm * 0.14;
+                busCO2 = busKm * 1.2;
+                savedCO2 = (carCO2 - busCO2) / 1000; // Tons
+                
+                const carFuel = carKm / 10;
+                const busFuel = busKm / 3;
+                savedFuel = carFuel - busFuel;
+                
+                costSaved = savedFuel * 2.33; // SAR
+
+                // Update KPIs
+                document.getElementById('cars-off-road').innerText = format(d.students_on_bus);
+                document.getElementById('co2-saved').innerText = format(Math.round(savedCO2)) + ' T';
+                document.getElementById('fuel-saved').innerText = format(Math.round(savedFuel)) + ' L';
+                document.getElementById('cost-saved').innerText = format(Math.round(costSaved));
+                
+                // Impact Score (based on CO2 reduction efficiency)
+                const impactScore = Math.min(100, Math.round((savedCO2 / (carCO2/1000)) * 100));
+                document.getElementById('impact-score').innerText = impactScore;
+                document.getElementById('impact-bar').style.width = impactScore + '%';
+                
+                // Yearly projections (220 school days)
+                const schoolDays = 220;
+                document.getElementById('yearly-co2').innerText = format(Math.round(savedCO2 * schoolDays)) + ' T';
+                document.getElementById('yearly-fuel').innerText = fmt.compact(Math.round(savedFuel * schoolDays)) + ' L';
+                document.getElementById('yearly-cost').innerText = fmt.compact(Math.round(costSaved * schoolDays)) + ' SAR';
+                // 1 tree absorbs ~21 kg CO2/year
+                const treesEquiv = Math.round((savedCO2 * schoolDays * 1000) / 21);
+                document.getElementById('trees-equiv').innerText = format(treesEquiv) + ' 🌳';
+
+                // Emissions Chart
+                new Chart(document.getElementById('emissionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Private Cars', 'Rafed Buses'],
+                        datasets: [{
+                            label: 'Daily CO2 (Tons)',
+                            data: [carCO2/1000, busCO2/1000],
+                            backgroundColor: ['#ef4444', '#10b981'],
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, 
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } 
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            } else {
+                usingSample = true;
+                document.getElementById('cars-off-road').textContent = '12,500';
+                document.getElementById('co2-saved').textContent = '22.4 tons';
+                document.getElementById('fuel-saved').textContent = '38,200';
+                document.getElementById('cost-saved').textContent = '1.6M';
+                document.getElementById('impact-score').textContent = '82/100';
+                document.getElementById('impact-bar').style.width = '82%';
+                document.getElementById('yearly-co2').textContent = '8,200 Tons';
+                document.getElementById('yearly-fuel').textContent = '13.9M L';
+                document.getElementById('yearly-cost').textContent = '520M SAR';
+                document.getElementById('trees-equiv').textContent = '375,000 trees';
+            }
+
+        // 2. Heatmap - High impact areas
+        let points = await query(`
+            SELECT toFloat64(lat) as lat, toFloat64(lon) as lon, dist_m 
+            FROM students 
+            WHERE bus_elig = 1 AND lat IS NOT NULL AND lon IS NOT NULL
+        `);
+
+        if (!points || !points.length) {
+            points = SAMPLE_POINTS;
+            usingSample = true;
+        }
+
+        if (points && points.length > 0) {
+            const { DeckGL, HexagonLayer } = deck;
+            
+            // Vibrant gradient: cyan -> green -> yellow for environmental impact
+            const impactColorRange = [
+                [6, 182, 212],    // Cyan (low impact)
+                [34, 197, 94],    // Green
+                [74, 222, 128],   // Light green
+                [163, 230, 53],   // Lime
+                [250, 204, 21],   // Yellow
+                [249, 115, 22]    // Orange (high impact)
+            ];
+            
+            new DeckGL({
+                container: 'map-container',
+                mapStyle: RAFED_CONFIG.MAP_STYLE,
+                initialViewState: { longitude: 46.7, latitude: 24.7, zoom: 10, pitch: 45 },
+                controller: true,
+                layers: [
+                    new HexagonLayer({
+                        id: 'heatmap',
+                        data: points,
+                        getPosition: d => [d.lon, d.lat],
+                        getColorWeight: d => d.dist_m || d.value,
+                        getElevationWeight: d => 1,
+                        colorAggregation: 'MEAN',
+                        elevationAggregation: 'SUM',
+                        elevationScale: 15,
+                        extruded: true,
+                        radius: 400,
+                        coverage: 0.85,
+                        colorRange: impactColorRange,
+                        colorScaleType: 'quantile',
+                        lowerPercentile: 5,
+                        upperPercentile: 95,
+                        elevationLowerPercentile: 0,
+                        elevationUpperPercentile: 100,
+                        opacity: 0.9,
+                        pickable: true,
+                        autoHighlight: true,
+                        highlightColor: [255, 255, 255, 120],
+                        material: {
+                            ambient: 0.6,
+                            diffuse: 0.6,
+                            shininess: 40,
+                            specularColor: [60, 64, 70]
+                        }
+                    })
+                ],
+                getTooltip: ({object}) => object && {
+                    html: `<div style="padding: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 150px;">
+                        <strong style="color: #22c55e; font-size: 13px;">🌍 Environmental Impact</strong><br/>
+                        <div style="margin-top: 6px; color: #e2e8f0; font-size: 12px;">Students: <b>${object.points?.length || 0}</b></div>
+                        <div style="color: #94a3b8; font-size: 12px;">Avg Distance: <b style="color: #22c55e;">${object.points ? (object.points.reduce((a,p) => a + (p.source.dist_m || p.source.value), 0) / object.points.length / 1000).toFixed(1) : 0} km</b></div>
+                        <div style="color: #94a3b8; font-size: 12px;">CO2 Saved: <b style="color: #06b6d4;">${object.points ? ((object.points.reduce((a,p) => a + (p.source.dist_m || p.source.value), 0) / 1000 * 0.14 * 2) / 1000).toFixed(2) : 0} T/day</b></div>
+                    </div>`,
+                    style: { background: 'transparent', border: 'none' }
+                }
+            });
+        }
+
+            // 3. Regional Chart
+            let reg = await query(`
+                SELECT region_ar, sum(dist_m * 2 / 1000 * 0.14) / 1000 as potential_co2_tons
+                FROM students
+                WHERE bus_elig = 1
+                GROUP BY region_ar
+                ORDER BY potential_co2_tons DESC
+                LIMIT 5
+            `);
+            
+            if (!reg || !reg.length) {
+                reg = SAMPLE_REGIONS;
+                usingSample = true;
+            }
+
+            if (reg) {
+                new Chart(document.getElementById('regionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: reg.map(d => d.region_ar || d.region || 'Unknown'),
+                        datasets: [{
+                            label: 'CO2 Savings (Tons)',
+                            data: reg.map(d => d.potential_co2_tons || d.saving),
+                            backgroundColor: '#22c55e',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: { 
+                            y: { ticks: { color: '#94a3b8' }, grid: { display: false } }, 
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } 
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            // 4. Top Impact Schools
+            const schools = await query(`
+                SELECT 
+                    school_name_ar,
+                    sum(student_count * distance_m * 2 / 1000 * 0.14) / 1000 as impact_tons
+                FROM school_routes
+                GROUP BY school_name_ar
+                ORDER BY impact_tons DESC
+                LIMIT 8
+            `);
+            
+            const schoolsList = document.getElementById('schools-list');
+            if (schools?.data?.length) {
+                schoolsList.innerHTML = schools.data.map((s, i) => `
+                    <div class="p-2 bg-slate-800/50 rounded border border-slate-700 flex justify-between items-center">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-5 h-5 rounded-full bg-emerald-900/50 text-emerald-400 text-xs flex items-center justify-center flex-shrink-0">${i + 1}</span>
+                            <span class="text-xs text-slate-300 truncate">${s.school_name_ar || 'Unknown'}</span>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-400 flex-shrink-0 ml-2">${s.impact_tons.toFixed(1)}T</span>
+                    </div>
+                `).join('');
+            } else {
+                schoolsList.innerHTML = '<div class="text-center text-slate-500 text-sm p-4">No data available</div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

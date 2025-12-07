@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <title>Rafed Command Center | Analytics Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.4s ease-out',
+                        'pulse-slow': 'pulse 3s infinite'
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { 
+            background-color: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        .card:hover { border-color: #475569; }
+        .kpi-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .kpi-value { transition: all 0.3s ease; }
+        #map-container { position: relative; height: 100%; width: 100%; border-radius: 0 0 0.75rem 0.75rem; overflow: hidden; min-height: 500px; }
+        canvas { width: 100% !important; height: 100% !important; }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-dot { animation: pulse 2s infinite; }
+    </style>
+</head>
+<body class="p-6 min-h-screen">
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
+                <iconify-icon icon="solar:bus-bold" class="text-2xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="dashboard-title">Rafed Command Center</h1>
+                <p class="dashboard-subtitle">National School Transport Analytics • KSA</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="px-4 py-2 bg-slate-800/80 backdrop-blur rounded-lg text-sm border border-slate-700 flex items-center gap-2">
+                <span class="w-2 h-2 bg-emerald-500 rounded-full status-dot"></span>
+                <span class="text-slate-300">Live Data</span>
+            </div>
+            <div class="px-3 py-2 bg-slate-800/80 rounded-lg text-xs text-slate-400 border border-slate-700">
+                <span id="last-update">--</span>
+            </div>
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:home-2-bold" width="16" height="16"></iconify-icon>
+                Home
+            </a>
+            <button onclick="refreshData()" id="refresh-btn" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16" id="refresh-icon"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- KPI Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+        <!-- KPI 1 -->
+        <div class="card kpi-card p-5" style="animation-delay: 0.1s">
+            <div class="absolute -top-4 -right-4 opacity-10">
+                <iconify-icon icon="solar:users-group-rounded-bold" class="text-[100px] text-blue-500"></iconify-icon>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:users-group-rounded-bold" class="text-blue-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Students</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1 kpi-value" id="kpi-students">
+                <div class="skeleton h-8 w-24 bg-slate-700 rounded"></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                    <iconify-icon icon="solar:graph-up-bold" class="text-sm"></iconify-icon>
+                    12% YoY
+                </span>
+            </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="card kpi-card p-5" style="animation-delay: 0.2s">
+            <div class="absolute -top-4 -right-4 opacity-10">
+                <iconify-icon icon="solar:bus-bold" class="text-[100px] text-amber-500"></iconify-icon>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:bus-bold" class="text-amber-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Bus Eligible</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1 kpi-value" id="kpi-eligible">
+                <div class="skeleton h-8 w-24 bg-slate-700 rounded"></div>
+            </div>
+            <div class="text-xs text-slate-400 flex items-center gap-1">
+                <span id="kpi-eligible-pct" class="font-semibold text-amber-400">-</span>% of population
+            </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="card kpi-card p-5" style="animation-delay: 0.3s">
+            <div class="absolute -top-4 -right-4 opacity-10">
+                <iconify-icon icon="solar:buildings-2-bold" class="text-[100px] text-purple-500"></iconify-icon>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:buildings-2-bold" class="text-purple-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Schools</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1 kpi-value" id="kpi-schools">
+                <div class="skeleton h-8 w-24 bg-slate-700 rounded"></div>
+            </div>
+            <div class="text-xs text-slate-400">Across <span class="text-purple-400 font-semibold">13</span> Regions</div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="card kpi-card p-5" style="animation-delay: 0.4s">
+            <div class="absolute -top-4 -right-4 opacity-10">
+                <iconify-icon icon="solar:clock-circle-bold" class="text-[100px] text-rose-500"></iconify-icon>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:clock-circle-bold" class="text-rose-400"></iconify-icon>
+                </div>
+                <h3 class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Waitlist</h3>
+            </div>
+            <div class="text-3xl font-bold text-white mb-1 kpi-value" id="kpi-waitlist">
+                <div class="skeleton h-8 w-24 bg-slate-700 rounded"></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 flex items-center gap-1">
+                    <iconify-icon icon="solar:danger-triangle-bold" class="text-sm"></iconify-icon>
+                    Action Required
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" style="height: calc(100vh - 280px); min-height: 500px;">
+        
+        <!-- Map Column (2/3 width) -->
+        <div class="lg:col-span-2 card flex flex-col h-full animate-slide-up">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <iconify-icon icon="solar:map-point-bold" class="text-blue-400"></iconify-icon>
+                    Student Distribution Map
+                    <span class="text-xs text-slate-500 font-normal ml-2">Riyadh Region</span>
+                </h3>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-3">
+                        <span class="text-xs text-slate-400 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>Boys
+                        </span>
+                        <span class="text-xs text-slate-400 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 bg-pink-500 rounded-full"></span>Girls
+                        </span>
+                    </div>
+                    <div class="h-4 w-px bg-slate-700"></div>
+                    <span class="text-xs text-slate-500" id="map-point-count">-- points</span>
+                </div>
+            </div>
+            <div id="map-container" class="flex-1 relative overflow-hidden">
+                <div id="map-loading" class="absolute inset-0 bg-slate-900 flex items-center justify-center z-10">
+                    <div class="text-center">
+                        <div class="w-10 h-10 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mb-3 mx-auto"></div>
+                        <p class="text-slate-400 text-sm">Loading map data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Column (1/3 width) -->
+        <div class="space-y-5 h-full flex flex-col">
+            
+            <!-- Chart 1 -->
+            <div class="card flex-1 flex flex-col animate-slide-up" style="animation-delay: 0.2s">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                        <iconify-icon icon="mdi:gender-male-female" class="text-indigo-400"></iconify-icon>
+                        Gender Distribution
+                    </h3>
+                </div>
+                <div class="flex-1 p-4 relative min-h-[200px]">
+                    <canvas id="chart-gender"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2 -->
+            <div class="card flex-1 flex flex-col animate-slide-up" style="animation-delay: 0.3s">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                        <iconify-icon icon="mdi:chart-bar" class="text-emerald-400"></iconify-icon>
+                        Top Regions by Demand
+                    </h3>
+                </div>
+                <div class="flex-1 p-4 relative min-h-[200px]">
+                    <canvas id="chart-regions"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500">
+        <span>Rafed Analytics Platform • 2024</span>
+        <span>Data refreshed: <span id="footer-time">--</span></span>
+    </footer>
+
+    <script>
+        // --- Dashboard State ---
+        let isLoading = false;
+        let genderChart = null;
+        let regionsChart = null;
+        
+        // --- Helpers (using shared.js) ---
+        const formatNum = (n) => fmt.number(n);
+        
+        async function queryCH(sql) {
+            // Use full response helper so we reliably get { success, data, meta }
+            const result = await queryClickHouseFull(sql);
+            if (result && result.success) return result;
+            return { success: false, data: [] };
+        }
+
+        function updateTimestamp() {
+            const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('last-update').textContent = now;
+            document.getElementById('footer-time').textContent = now;
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            const btn = document.getElementById('refresh-btn');
+            const icon = document.getElementById('refresh-icon');
+            btn.disabled = loading;
+            icon.style.animation = loading ? 'spin 1s linear infinite' : 'none';
+        }
+
+        // --- Dashboard Logic ---
+
+        async function loadKPIs() {
+            // Parallel fetch for KPIs
+            const [students, schools, waitlist] = await Promise.all([
+                queryCH('SELECT count() as c, sum(bus_elig) as elig FROM students'),
+                queryCH('SELECT count() as c FROM schools'),
+                queryCH('SELECT count() as c FROM unassigned_students')
+            ]);
+
+            if (students && students.data && students.data[0]) {
+                const total = parseInt(students.data[0].c);
+                const elig = parseInt(students.data[0].elig);
+                
+                // Animate KPI values
+                const studentsEl = document.getElementById('kpi-students');
+                const eligibleEl = document.getElementById('kpi-eligible');
+                
+                studentsEl.innerHTML = '';
+                eligibleEl.innerHTML = '';
+                
+                animateValue(studentsEl, 0, total, 1200);
+                animateValue(eligibleEl, 0, elig, 1200);
+                document.getElementById('kpi-eligible-pct').textContent = Math.round((elig / total) * 100);
+            }
+            
+            if (schools && schools.data && schools.data[0]) {
+                const schoolsEl = document.getElementById('kpi-schools');
+                schoolsEl.innerHTML = '';
+                animateValue(schoolsEl, 0, parseInt(schools.data[0].c), 1000);
+            }
+            
+            if (waitlist && waitlist.data && waitlist.data[0]) {
+                const waitlistEl = document.getElementById('kpi-waitlist');
+                waitlistEl.innerHTML = '';
+                animateValue(waitlistEl, 0, parseInt(waitlist.data[0].c), 1000);
+            }
+        }
+
+        async function loadCharts() {
+            // Gender Chart
+            const genderData = await queryCH('SELECT gender, count() as c FROM students GROUP BY gender');
+            if (genderData && genderData.data) {
+                const labels = genderData.data.map(d => d.gender === 'M' ? 'Male' : 'Female');
+                const data = genderData.data.map(d => parseInt(d.c));
+                
+                // Destroy existing chart if exists
+                if (genderChart) genderChart.destroy();
+                
+                genderChart = new Chart(document.getElementById('chart-gender'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: ['#3b82f6', '#ec4899'],
+                            borderWidth: 0,
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: getChartOptions({
+                        cutout: '60%',
+                        plugins: { 
+                            legend: { position: 'bottom', labels: { padding: 15 } },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => `${ctx.label}: ${fmt.number(ctx.raw)} (${((ctx.raw / data.reduce((a,b)=>a+b,0)) * 100).toFixed(1)}%)`
+                                }
+                            }
+                        }
+                    }, 'dark')
+                });
+            }
+
+            // Regions Chart
+            const regionData = await queryCH('SELECT region_ar, count() as c FROM students GROUP BY region_ar ORDER BY c DESC LIMIT 5');
+            if (regionData && regionData.data) {
+                if (regionsChart) regionsChart.destroy();
+                
+                regionsChart = new Chart(document.getElementById('chart-regions'), {
+                    type: 'bar',
+                    data: {
+                        labels: regionData.data.map(d => d.region_ar || 'Unknown'),
+                        datasets: [{
+                            label: 'Students',
+                            data: regionData.data.map(d => parseInt(d.c)),
+                            backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                            hoverBackgroundColor: 'rgba(99, 102, 241, 1)',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: getChartOptions({
+                        indexAxis: 'y',
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => fmt.number(ctx.raw) + ' students'
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                grid: { color: 'rgba(51, 65, 85, 0.5)' },
+                                ticks: { callback: (v) => fmt.compact(v) }
+                            },
+                            y: { grid: { display: false } }
+                        }
+                    }, 'dark')
+                });
+            }
+        }
+
+        async function initMap() {
+            const { DeckGL, ScatterplotLayer } = deck;
+            const loadingEl = document.getElementById('map-loading');
+
+            try {
+                // Load sampled students for map visualization (7.5M total - sample 100K for performance)
+                const points = await queryCH('SELECT toFloat64(lat) as lat, toFloat64(lon) as lon, gender FROM students WHERE lat IS NOT NULL AND lon IS NOT NULL ORDER BY cityHash64(id) LIMIT 100000');
+                
+                if (!points || !points.data || points.data.length === 0) {
+                    loadingEl.innerHTML = UI.error('No map data available for this region');
+                    return;
+                }
+                
+                document.getElementById('map-point-count').textContent = fmt.number(points.data.length) + ' points';
+
+                const map = new DeckGL({
+                    container: 'map-container',
+                    mapStyle: RAFED_CONFIG.MAP_STYLE,
+                    initialViewState: {
+                        longitude: 46.7,
+                        latitude: 24.7,
+                        zoom: 10,
+                        pitch: 45,
+                        bearing: -10
+                    },
+                    controller: true,
+                    onLoad: () => {
+                        loadingEl.style.display = 'none';
+                    },
+                    layers: [
+                        new ScatterplotLayer({
+                            id: 'students-layer',
+                            data: points.data,
+                            getPosition: d => [d.lon, d.lat],
+                            getFillColor: d => d.gender === 'F' ? [236, 72, 153, 200] : [59, 130, 246, 200],
+                            getRadius: 40,
+                            radiusMinPixels: 2,
+                            radiusMaxPixels: 8,
+                            pickable: true,
+                            autoHighlight: true,
+                            highlightColor: [255, 255, 255, 100]
+                        })
+                    ],
+                    getTooltip: ({object}) => object && {
+                        html: `<div style="padding: 8px; background: #1e293b; border-radius: 6px; border: 1px solid #334155;">
+                            <strong style="color: ${object.gender === 'F' ? '#ec4899' : '#3b82f6'}">
+                                ${object.gender === 'F' ? 'Female' : 'Male'} Student
+                            </strong>
+                        </div>`,
+                        style: { backgroundColor: 'transparent', border: 'none' }
+                    }
+                });
+            } catch (e) {
+                console.error('Map error:', e);
+                loadingEl.innerHTML = UI.error('Failed to load map');
+            }
+        }
+
+        // --- Init ---
+        window.refreshData = async function() {
+            if (isLoading) return;
+            setLoading(true);
+            
+            try {
+                await Promise.all([loadKPIs(), loadCharts()]);
+                updateTimestamp();
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // Start
+        (async function init() {
+            updateTimestamp();
+            await Promise.all([loadKPIs(), loadCharts()]);
+            initMap();
+        })();
+
+    </script>
+</body>
+</html>

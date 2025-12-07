@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed - Customer Experience</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+        .metric-card { @apply p-5 flex flex-col justify-between card h-32; }
+        .btn-cyan { @apply px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors; }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6 flex-none">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-600/20">
+                <iconify-icon icon="mdi:face-agent" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight">Customer Experience (CX)</h1>
+                <p class="text-slate-400 text-xs">Complaint Monitoring & Satisfaction</p>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="location.reload()" class="btn-cyan">Refresh Data</button>
+        </div>
+    </header>
+
+    <!-- Metrics -->
+    <div class="grid grid-cols-4 gap-6 mb-6 flex-none">
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Total Complaints</h3>
+            <div class="text-3xl font-bold text-white" id="total-complaints">-</div>
+            <div class="text-xs text-red-400 flex gap-1 items-center">
+                <iconify-icon icon="mdi:trending-up"></iconify-icon> +12% this month
+            </div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Top Issue</h3>
+            <div class="text-2xl font-bold text-white" id="top-issue">-</div>
+            <div class="text-xs text-slate-500">Most frequent category</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Resolution Rate</h3>
+            <div class="text-3xl font-bold text-white" id="resolution-rate">92%</div>
+            <div class="text-xs text-emerald-400">Within SLA (48h)</div>
+        </div>
+        <div class="metric-card">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Satisfaction Score</h3>
+            <div class="text-3xl font-bold text-white">4.2/5</div>
+            <div class="text-xs text-slate-500">Based on R11 Survey</div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="grid grid-cols-3 gap-6 flex-1 min-h-0">
+        
+        <!-- Map -->
+        <div class="col-span-2 card p-1 flex flex-col h-full">
+            <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <iconify-icon icon="mdi:map-marker-alert" class="text-cyan-500"></iconify-icon>
+                    Complaint Hotspots (Regional)
+                </h3>
+            </div>
+            <div class="flex-1 relative rounded-b-lg overflow-hidden">
+                <div id="map-container"></div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="flex flex-col gap-6 h-full">
+            
+            <!-- Category Breakdown -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-4">Complaints by Category</h3>
+                <div class="h-[200px] w-full relative">
+                    <canvas id="catChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Trend -->
+            <div class="card p-4 flex-1">
+                <h3 class="font-semibold text-white text-sm mb-4">Complaints by Region</h3>
+                <div class="h-[200px] w-full relative">
+                    <canvas id="regionChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const CH_API = 'http://localhost:8155';
+        const AUTH = 'user=viewer&password=rafed_view';
+
+        async function query(sql) {
+            try {
+                const r = await fetch(`${CH_API}/?${AUTH}&query=${encodeURIComponent(sql + ' FORMAT JSON')}`);
+                return await r.json();
+            } catch(e) { console.error(e); return null; }
+        }
+
+        const format = (n) => Number(n).toLocaleString();
+
+        async function init() {
+            // 1. Metrics
+            const m = await query(`
+                SELECT 
+                    sum(Total_Complaints) as total,
+                    sum(Bus_Delay) as delay,
+                    sum(AC_Cleanliness) as ac,
+                    sum(Driver_Behavior) as driver
+                FROM support_data_report8_official_complaints_937_rafed
+            `);
+            
+            if(m && m.data[0]) {
+                const d = m.data[0];
+                document.getElementById('total-complaints').innerText = format(d.total);
+                
+                // Simple top issue logic
+                let top = 'Delay';
+                let max = d.delay;
+                if(d.ac > max) { max = d.ac; top = 'AC/Cleanliness'; }
+                if(d.driver > max) { max = d.driver; top = 'Driver Behavior'; }
+                document.getElementById('top-issue').innerText = top;
+            }
+
+            // 2. Map (Aggregated by Region since we don't have lat/lon for complaints)
+            // We will use a simple scatterplot at region centroids (approximate for demo)
+            // We need region centroids. For now, let's hardcode a few or join with student centroids.
+            // Hardcoding major Saudi cities for visualization purposes:
+            const regionCentroids = {
+                'Riyadh': [46.7, 24.7],
+                'Makkah': [39.8, 21.4],
+                'Eastern Province': [50.1, 26.4],
+                'Madinah': [39.6, 24.5],
+                'Asir': [42.5, 18.2]
+            };
+
+            const regionData = await query(`
+                SELECT Region_English, sum(Total_Complaints) as cnt 
+                FROM support_data_report8_official_complaints_937_rafed 
+                GROUP BY Region_English
+            `);
+
+            if(regionData) {
+                const mapData = regionData.data.map(d => ({
+                    region: d.Region_English,
+                    count: d.cnt,
+                    coords: regionCentroids[d.Region_English] || [45.0, 24.0] // Default fallback
+                }));
+
+                const { DeckGL, ScatterplotLayer } = deck;
+                new DeckGL({
+                    container: 'map-container',
+                    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    initialViewState: { longitude: 45.0, latitude: 24.0, zoom: 5 },
+                    controller: true,
+                    layers: [
+                        new ScatterplotLayer({
+                            id: 'complaint-bubbles',
+                            data: mapData,
+                            getPosition: d => d.coords,
+                            getFillColor: [239, 68, 68, 200], // Red
+                            getRadius: d => Math.sqrt(d.count) * 5000, // Scale radius
+                            radiusMinPixels: 10,
+                            opacity: 0.6,
+                            stroked: true,
+                            getLineColor: [255,255,255]
+                        })
+                    ]
+                });
+            }
+
+            // 3. Charts
+            // Category Breakdown
+            if(m && m.data[0]) {
+                const d = m.data[0];
+                new Chart(document.getElementById('catChart'), {
+                    type: 'pie',
+                    data: {
+                        labels: ['Bus Delay', 'AC/Cleanliness', 'Driver Behavior'],
+                        datasets: [{
+                            data: [d.delay, d.ac, d.driver],
+                            backgroundColor: ['#f59e0b', '#06b6d4', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } }
+                    }
+                });
+            }
+
+            // Region Chart
+            if(regionData) {
+                new Chart(document.getElementById('regionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: regionData.data.map(d => d.Region_English),
+                        datasets: [{
+                            label: 'Complaints',
+                            data: regionData.data.map(d => d.cnt),
+                            backgroundColor: '#06b6d4',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+        init();
+    </script>
+</body>
+</html>

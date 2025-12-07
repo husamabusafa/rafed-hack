@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed - Student Distance Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: #0f172a; 
+            color: #e2e8f0;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            padding: 1rem 1.5rem;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 0;
+            min-height: 0;
+        }
+        
+        .map-section {
+            position: relative;
+        }
+        
+        #deck-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sidebar {
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-section {
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .section-title {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+        }
+        
+        .stat-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+        }
+        
+        .stat-label { color: #94a3b8; font-size: 0.6875rem; text-transform: uppercase; }
+        .stat-value { color: #f1f5f9; font-weight: 700; font-size: 1.25rem; margin-top: 0.25rem; }
+        
+        .controls-panel {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            width: 280px;
+            z-index: 100;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #334155;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        
+        .chart-container {
+            height: 200px;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+                <iconify-icon icon="solar:ruler-angular-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold text-white">Student Distance Analysis</h1>
+                <p class="text-xs text-slate-400">Home-to-School Distance & Walkability Assessment</p>
+            </div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <a href="index.html" class="btn btn-secondary btn-sm">
+                <iconify-icon icon="solar:arrow-left-linear" width="16" height="16"></iconify-icon>
+                Back
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary btn-sm">
+                <iconify-icon icon="solar:refresh-bold" width="16" height="16"></iconify-icon>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <!-- Map -->
+        <div class="map-section">
+            <div id="deck-canvas"></div>
+            
+            <!-- Controls Panel -->
+            <div class="controls-panel">
+                <div class="section-title">Distance Filters</div>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs text-slate-400 mb-2">
+                        <span>Max Distance</span>
+                        <span id="distance-value">5 km</span>
+                    </div>
+                    <input type="range" class="slider" id="distance-slider" min="0.5" max="10" step="0.5" value="5">
+                </div>
+                
+                <div class="section-title mt-4">Legend</div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #22c55e;"></div>
+                    <span class="text-slate-300">Walkable (&lt; 1km)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #3b82f6;"></div>
+                    <span class="text-slate-300">Short commute (1-3km)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #f59e0b;"></div>
+                    <span class="text-slate-300">Medium (3-5km)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #ef4444;"></div>
+                    <span class="text-slate-300">Long commute (&gt; 5km)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="section-title">Distance Overview</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Distance</div>
+                        <div class="stat-value" id="avg-distance">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Max Distance</div>
+                        <div class="stat-value" id="max-distance">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Walkable %</div>
+                        <div class="stat-value text-green-400" id="walkable-pct">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Long Commute %</div>
+                        <div class="stat-value text-red-400" id="long-pct">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="section-title">Distance Distribution</div>
+                <div class="chart-container">
+                    <canvas id="distanceChart"></canvas>
+                </div>
+                
+                <div class="section-title mt-6">By Education Stage</div>
+                <div class="chart-container">
+                    <canvas id="stageChart"></canvas>
+                </div>
+                
+                <div class="section-title mt-6">Top Long-Commute Schools</div>
+                <div id="schools-list" class="space-y-2 mt-2">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deckgl;
+        let allStudents = [];
+        let maxDistanceFilter = 5;
+        
+        async function query(sql) {
+            const data = await queryClickHouse(sql);
+            return data && data.length >= 0 ? { data } : null;
+        }
+
+        function getDistanceColor(dist_m) {
+            const km = dist_m / 1000;
+            if (km < 1) return [34, 197, 94];      // Green - walkable
+            if (km < 3) return [59, 130, 246];     // Blue - short
+            if (km < 5) return [245, 158, 11];     // Amber - medium
+            return [239, 68, 68];                   // Red - long
+        }
+
+        async function loadMetrics() {
+            // Distance stats
+            const stats = await query(`
+                SELECT 
+                    avg(dist_m) as avg_dist,
+                    max(dist_m) as max_dist,
+                    countIf(dist_m < 1000) * 100.0 / count() as walkable_pct,
+                    countIf(dist_m > 5000) * 100.0 / count() as long_pct
+                FROM students
+                WHERE dist_m IS NOT NULL
+            `);
+            
+            if (stats && stats.data[0]) {
+                const d = stats.data[0];
+                document.getElementById('avg-distance').textContent = (d.avg_dist / 1000).toFixed(1) + ' km';
+                document.getElementById('max-distance').textContent = (d.max_dist / 1000).toFixed(1) + ' km';
+                document.getElementById('walkable-pct').textContent = parseFloat(d.walkable_pct).toFixed(1) + '%';
+                document.getElementById('long-pct').textContent = parseFloat(d.long_pct).toFixed(1) + '%';
+            }
+        }
+
+        async function loadDistanceChart() {
+            const data = await query(`
+                SELECT 
+                    multiIf(
+                        dist_m < 500, '0-0.5km',
+                        dist_m < 1000, '0.5-1km',
+                        dist_m < 2000, '1-2km',
+                        dist_m < 3000, '2-3km',
+                        dist_m < 5000, '3-5km',
+                        '5km+'
+                    ) as bucket,
+                    count() as cnt
+                FROM students
+                WHERE dist_m IS NOT NULL
+                GROUP BY bucket
+                ORDER BY bucket
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('distanceChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.bucket),
+                        datasets: [{
+                            data: data.data.map(d => d.cnt),
+                            backgroundColor: ['#22c55e', '#22c55e', '#3b82f6', '#3b82f6', '#f59e0b', '#ef4444'],
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadStageChart() {
+            const data = await query(`
+                SELECT 
+                    school_grds as stage,
+                    avg(dist_m) / 1000 as avg_km
+                FROM students
+                WHERE dist_m IS NOT NULL AND school_grds IS NOT NULL
+                GROUP BY stage
+                ORDER BY avg_km DESC
+                LIMIT 5
+            `);
+            
+            if (data && data.data.length > 0) {
+                new Chart(document.getElementById('stageChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.data.map(d => d.stage || 'Unknown'),
+                        datasets: [{
+                            label: 'Avg Distance (km)',
+                            data: data.data.map(d => parseFloat(d.avg_km).toFixed(2)),
+                            backgroundColor: '#6366f1',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadLongCommuteSchools() {
+            const data = await query(`
+                SELECT 
+                    school_name,
+                    count() as students,
+                    avg(dist_m) / 1000 as avg_km
+                FROM students
+                WHERE dist_m > 5000 AND school_name IS NOT NULL
+                GROUP BY school_name
+                ORDER BY students DESC
+                LIMIT 8
+            `);
+            
+            const container = document.getElementById('schools-list');
+            if (data && data.data.length > 0) {
+                container.innerHTML = data.data.map(s => `
+                    <div class="stat-card">
+                        <div class="text-xs text-slate-300 truncate">${s.school_name}</div>
+                        <div class="flex justify-between mt-1">
+                            <span class="text-xs text-slate-500">${s.students} students</span>
+                            <span class="text-xs text-red-400">${parseFloat(s.avg_km).toFixed(1)} km avg</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="text-xs text-slate-500">No data available</div>';
+            }
+        }
+
+        async function loadMap() {
+            const points = await query(`
+                SELECT 
+                    toFloat64(lat) as lat, 
+                    toFloat64(lon) as lon,
+                    toFloat64(dist_m) as dist_m,
+                    school_name
+                FROM students 
+                WHERE lat IS NOT NULL AND lon IS NOT NULL
+                LIMIT 100000
+            `);
+            
+            if (points && points.data.length > 0) {
+                allStudents = points.data;
+                renderMap();
+            }
+        }
+
+        function renderMap() {
+            const { DeckGL, ScatterplotLayer } = deck;
+            
+            const filteredData = allStudents.filter(d => d.dist_m <= maxDistanceFilter * 1000);
+            
+            const layers = [
+                new ScatterplotLayer({
+                    id: 'students-distance',
+                    data: filteredData,
+                    getPosition: d => [d.lon, d.lat],
+                    getFillColor: d => getDistanceColor(d.dist_m),
+                    getRadius: 25,
+                    opacity: 0.7,
+                    pickable: true
+                })
+            ];
+
+            if (!deckgl) {
+                deckgl = new DeckGL({
+                    container: 'deck-canvas',
+                    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    initialViewState: {
+                        longitude: 45.0,
+                        latitude: 24.5,
+                        zoom: 5,
+                        pitch: 0
+                    },
+                    controller: true,
+                    layers: layers,
+                    getTooltip: ({object}) => object && {
+                        html: `<div class="p-2">
+                            <div class="font-semibold">${object.school_name || 'Student'}</div>
+                            <div class="text-sm">Distance: ${(object.dist_m / 1000).toFixed(2)} km</div>
+                        </div>`,
+                        style: { background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '8px' }
+                    }
+                });
+            } else {
+                deckgl.setProps({ layers });
+            }
+        }
+
+        // Distance slider
+        document.getElementById('distance-slider').addEventListener('input', (e) => {
+            maxDistanceFilter = parseFloat(e.target.value);
+            document.getElementById('distance-value').textContent = maxDistanceFilter + ' km';
+            renderMap();
+        });
+
+        // Initialize
+        async function init() {
+            await Promise.all([
+                loadMetrics(),
+                loadDistanceChart(),
+                loadStageChart(),
+                loadLongCommuteSchools(),
+                loadMap()
+            ]);
+        }
+
+        init();
+    </script>
+</body>
+</html>

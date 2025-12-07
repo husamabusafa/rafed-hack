@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed - Animated Bus Routes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: #0f172a; 
+            color: #e2e8f0;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #deck-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 100;
+        }
+        
+        .control-panel {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        .play-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .play-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+        
+        .play-btn.paused {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        .time-display {
+            text-align: center;
+            min-width: 100px;
+        }
+        
+        .time-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #10b981;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .time-label {
+            font-size: 0.625rem;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .speed-btn {
+            padding: 0.375rem 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.375rem;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .speed-btn.active {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        
+        .speed-btn:hover:not(.active) {
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+        
+        .trail-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .trail-slider label {
+            font-size: 0.625rem;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        
+        .trail-slider input {
+            width: 120px;
+            height: 4px;
+            border-radius: 2px;
+            background: #334155;
+            -webkit-appearance: none;
+        }
+        
+        .trail-slider input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+        }
+        
+        .stats-panel {
+            position: absolute;
+            top: 80px;
+            right: 1.5rem;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        
+        .stat-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+        
+        .legend-panel {
+            position: absolute;
+            top: 80px;
+            left: 1.5rem;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        .legend-title {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        
+        .legend-color {
+            width: 24px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+        
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #06b6d4);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        
+        .shift-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .shift-btn {
+            padding: 0.5rem 1rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .shift-btn.active {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border-color: #f59e0b;
+            color: white;
+        }
+        
+        .shift-btn.active.evening {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border-color: #6366f1;
+        }
+        
+        /* Timeline scrubber */
+        .timeline-container {
+            position: absolute;
+            bottom: 7rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            max-width: 90vw;
+            z-index: 100;
+        }
+        
+        .timeline-bar {
+            height: 6px;
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .timeline-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #06b6d4);
+            border-radius: 3px;
+            transition: width 0.1s linear;
+        }
+        
+        .timeline-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: grab;
+        }
+        
+        /* Filter panel */
+        .filter-panel {
+            position: absolute;
+            top: 80px;
+            left: 1.5rem;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            min-width: 180px;
+        }
+        
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            transition: color 0.2s;
+        }
+        
+        .filter-checkbox:hover {
+            color: #e2e8f0;
+        }
+        
+        .filter-checkbox input {
+            accent-color: #10b981;
+        }
+        
+        .filter-checkbox.checked {
+            color: #10b981;
+        }
+        
+        /* Utilization chart */
+        .util-chart {
+            display: flex;
+            gap: 2px;
+            height: 40px;
+            align-items: flex-end;
+            margin-top: 0.75rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #334155;
+        }
+        
+        .util-bar {
+            flex: 1;
+            border-radius: 2px 2px 0 0;
+            min-height: 4px;
+            transition: height 0.3s;
+        }
+        
+        /* Floating buttons */
+        .float-buttons {
+            position: absolute;
+            bottom: 2rem;
+            right: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        
+        .float-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.5rem;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            color: #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+        
+        .float-btn:hover {
+            background: #334155;
+            color: #f1f5f9;
+            border-color: #475569;
+        }
+        
+        .float-btn.active {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        
+        /* Route counter badge */
+        .route-badge {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid #334155;
+            border-radius: 2rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .route-badge .count {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        /* FPS counter */
+        .fps-counter {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            font-size: 0.625rem;
+            color: #475569;
+            font-family: monospace;
+            z-index: 50;
+        }
+        
+        /* Keyboard hint */
+        .kbd-hint {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            font-size: 0.625rem;
+            color: #475569;
+            z-index: 50;
+        }
+        
+        .kbd {
+            display: inline-block;
+            padding: 0.125rem 0.375rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            margin: 0 0.125rem;
+        }
+        
+        /* Pulse animation for schools */
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="deck-canvas"></div>
+    
+    <!-- Header -->
+    <header class="header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-600/20">
+                <iconify-icon icon="solar:route-bold" class="text-xl text-white"></iconify-icon>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-white">Animated Bus Routes</h1>
+                <p class="text-xs text-slate-400">Real-time Route Flow Visualization</p>
+            </div>
+        </div>
+        
+        <div class="shift-toggle">
+            <button class="shift-btn active" id="morning-btn" onclick="setShift('morning')">
+                <iconify-icon icon="solar:sun-bold" width="16"></iconify-icon>
+                Morning
+            </button>
+            <button class="shift-btn evening" id="evening-btn" onclick="setShift('evening')">
+                <iconify-icon icon="solar:moon-bold" width="16"></iconify-icon>
+                Evening
+            </button>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <a href="deckgl_3d_analytics.html" class="px-3 py-1.5 bg-slate-700 rounded text-xs text-slate-200 hover:bg-slate-600 transition-colors flex items-center gap-2">
+                <iconify-icon icon="solar:map-bold" width="14"></iconify-icon>
+                3D Analytics
+            </a>
+            <a href="index.html" class="px-3 py-1.5 bg-slate-700 rounded text-xs text-slate-200 hover:bg-slate-600 transition-colors flex items-center gap-2">
+                <iconify-icon icon="solar:arrow-left-linear" width="14"></iconify-icon>
+                Back
+            </a>
+        </div>
+    </header>
+    
+    <!-- Filter & Legend Panel -->
+    <div class="filter-panel">
+        <div class="legend-title">Filter by Utilization</div>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleFilter('low')">
+            <div class="legend-color" style="background: #06b6d4;"></div>
+            Low (&lt;50%)
+        </label>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleFilter('normal')">
+            <div class="legend-color" style="background: #10b981;"></div>
+            Normal (50-80%)
+        </label>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleFilter('high')">
+            <div class="legend-color" style="background: #f59e0b;"></div>
+            High (80-100%)
+        </label>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleFilter('overloaded')">
+            <div class="legend-color" style="background: #ef4444;"></div>
+            Overloaded (&gt;100%)
+        </label>
+        
+        <div class="util-chart" id="util-chart"></div>
+        
+        <div class="legend-title" style="margin-top: 1rem;">Toggle Layers</div>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleLayer('routes')">
+            <iconify-icon icon="solar:route-bold" width="14"></iconify-icon>
+            Bus Routes
+        </label>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleLayer('schools')">
+            <iconify-icon icon="solar:buildings-2-bold" width="14"></iconify-icon>
+            Schools
+        </label>
+        <label class="filter-checkbox checked">
+            <input type="checkbox" checked onchange="toggleLayer('glow')">
+            <iconify-icon icon="solar:sun-bold" width="14"></iconify-icon>
+            Glow Effects
+        </label>
+        <label class="filter-checkbox">
+            <input type="checkbox" onchange="toggleLayer('heatmap')">
+            <iconify-icon icon="solar:fire-bold" width="14"></iconify-icon>
+            Density Heatmap
+        </label>
+    </div>
+    
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+        <div class="legend-title">Route Statistics</div>
+        <div class="stat-row">
+            <span class="stat-label">Active Routes</span>
+            <span class="stat-value" id="stat-routes">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Total Students</span>
+            <span class="stat-value" id="stat-students">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Total Distance</span>
+            <span class="stat-value" id="stat-distance">0 km</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Avg Duration</span>
+            <span class="stat-value" id="stat-duration">0 min</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Avg Utilization</span>
+            <span class="stat-value" id="stat-utilization">0%</span>
+        </div>
+    </div>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <button class="play-btn" id="play-btn" onclick="togglePlay()">
+            <iconify-icon icon="solar:play-bold" width="24" id="play-icon"></iconify-icon>
+        </button>
+        
+        <div class="time-display">
+            <div class="time-value" id="time-display">06:00</div>
+            <div class="time-label">Simulation Time</div>
+        </div>
+        
+        <div class="speed-control">
+            <span class="text-xs text-slate-400">Speed:</span>
+            <button class="speed-btn" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</button>
+            <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">1x</button>
+            <button class="speed-btn" data-speed="2" onclick="setSpeed(2)">2x</button>
+            <button class="speed-btn" data-speed="5" onclick="setSpeed(5)">5x</button>
+        </div>
+        
+        <div class="trail-slider">
+            <label>Trail Length: <span id="trail-value">180</span></label>
+            <input type="range" min="30" max="500" value="180" onchange="setTrailLength(this.value)">
+        </div>
+        
+        <button class="speed-btn" onclick="resetAnimation()">
+            <iconify-icon icon="solar:restart-bold" width="14"></iconify-icon>
+            Reset
+        </button>
+    </div>
+    
+    <!-- Timeline Scrubber -->
+    <div class="timeline-container">
+        <div class="timeline-bar" id="timeline-bar" onclick="seekTimeline(event)">
+            <div class="timeline-progress" id="timeline-progress"></div>
+            <div class="timeline-thumb" id="timeline-thumb"></div>
+        </div>
+    </div>
+    
+    <!-- Route Count Badge -->
+    <div class="route-badge">
+        <iconify-icon icon="solar:bus-bold" width="14"></iconify-icon>
+        <span><span class="count" id="visible-routes">0</span> routes visible</span>
+        <span class="text-slate-600">|</span>
+        <span>Riyadh City</span>
+    </div>
+    
+    <!-- Floating Buttons -->
+    <div class="float-buttons">
+        <button class="float-btn" onclick="zoomToFit()" title="Zoom to Fit (F)">
+            <iconify-icon icon="solar:maximize-square-linear" width="18"></iconify-icon>
+        </button>
+        <button class="float-btn" onclick="toggleFullscreen()" title="Fullscreen">
+            <iconify-icon icon="solar:full-screen-linear" width="18" id="fullscreen-icon"></iconify-icon>
+        </button>
+        <button class="float-btn" id="focus-btn" onclick="toggleFocusMode()" title="Focus on Problem Routes (P)">
+            <iconify-icon icon="solar:danger-triangle-linear" width="18"></iconify-icon>
+        </button>
+        <button class="float-btn" onclick="toggleAutoRotate()" id="rotate-btn" title="Auto Rotate (R)">
+            <iconify-icon icon="solar:refresh-linear" width="18"></iconify-icon>
+        </button>
+    </div>
+    
+    <!-- FPS Counter -->
+    <div class="fps-counter" id="fps-counter">-- FPS</div>
+    
+    <!-- Keyboard Hints -->
+    <div class="kbd-hint">
+        <span class="kbd">Space</span> Play/Pause
+        <span class="kbd">←→</span> Speed
+        <span class="kbd">R</span> Rotate
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <iconify-icon icon="solar:bus-bold" width="64" class="text-cyan-500 animate-pulse"></iconify-icon>
+        <p class="text-slate-300 mt-4 text-lg font-medium">Loading Bus Routes...</p>
+        <p class="text-slate-500 text-sm mt-2" id="loading-status">Initializing...</p>
+        <div class="loading-progress">
+            <div class="loading-bar" id="loading-bar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let deckInstance = null;
+        let routesData = [];
+        let tripsData = [];
+        let isPlaying = true;
+        let currentTime = 0;
+        let animationSpeed = 1;
+        let trailLength = 180;
+        let loopLength = 1800; // 30 minutes in "seconds"
+        let animationFrame = null;
+        let currentShift = 'morning';
+        let autoRotate = false;
+        let focusMode = false;
+        let filters = { low: true, normal: true, high: true, overloaded: true };
+        let layers = { routes: true, schools: true, glow: true, heatmap: false };
+        let cachedFilteredTrips = [];
+        let layersNeedUpdate = true;
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+        
+        // Decode Google Polyline
+        function decodePolyline(encoded, factor = 1e5) {
+            if (!encoded) return [];
+            
+            const points = [];
+            let index = 0, lat = 0, lng = 0;
+            
+            while (index < encoded.length) {
+                let b, shift = 0, result = 0;
+                
+                do {
+                    b = encoded.charCodeAt(index++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                
+                const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                lat += dlat;
+                
+                shift = 0;
+                result = 0;
+                
+                do {
+                    b = encoded.charCodeAt(index++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                
+                const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                lng += dlng;
+                
+                points.push([lng / factor, lat / factor]);
+            }
+            
+            return points;
+        }
+        
+        // Robust geometry loader - handles polyline5/polyline6/JSON/WKT and fixes minor offsets
+        function getRouteCoords(route) {
+            if (!route?.geometry) return [];
+            const raw = route.geometry.trim();
+            
+            // Helper: check if coords land in KSA bounds (rough filter)
+            const inSaudi = (coords) => {
+                if (!coords?.length) return false;
+                return coords.every(([lon, lat]) => 
+                    lon > 34 && lon < 56 && lat > 15 && lat < 33
+                );
+            };
+            
+            // 1) GeoJSON/array string
+            if (raw.startsWith('[') || raw.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && Array.isArray(parsed[0])) {
+                        const coords = parsed.map(p => [Number(p[0]), Number(p[1])]);
+                        if (inSaudi(coords)) return coords;
+                    } else if (parsed.type === 'LineString' && Array.isArray(parsed.coordinates)) {
+                        const coords = parsed.coordinates.map(p => [Number(p[0]), Number(p[1])]);
+                        if (inSaudi(coords)) return coords;
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse geometry JSON', e);
+                }
+            }
+            
+            // 2) WKT LineString (very simple parser)
+            if (raw.startsWith('LINESTRING')) {
+                const match = raw.match(/LINESTRING\s*\((.*)\)/i);
+                if (match && match[1]) {
+                    const coords = match[1].split(',').map(pair => {
+                        const [lon, lat] = pair.trim().split(/\s+/).map(Number);
+                        return [lon, lat];
+                    });
+                    if (inSaudi(coords)) return coords;
+                }
+            }
+            
+            // 3) Encoded polyline (try precision 5 then 6)
+            const tryPoly5 = decodePolyline(raw, 1e5);
+            if (inSaudi(tryPoly5)) return tryPoly5;
+            
+            const tryPoly6 = decodePolyline(raw, 1e6);
+            if (inSaudi(tryPoly6)) return tryPoly6;
+            
+            // 4) Last resort: swap axes if still out of bounds
+            const swapped = tryPoly5.map(([lon, lat]) => [lat, lon]);
+            if (inSaudi(swapped)) return swapped;
+            
+            return tryPoly5; // fallback - even if out of bounds, avoid empty
+        }
+        
+        // Convert route to trip format with timestamps
+        function routeToTrip(route, index, totalRoutes) {
+            let coords = getRouteCoords(route);
+            if (coords.length < 2) return null;
+            
+            // Auto-correction: Align route start to DB lat/lon if available
+            // This fixes potential shifts between route engine graph and map tiles
+            if (route.lat && route.lon) {
+                const startPt = coords[0];
+                const dbLat = parseFloat(route.lat);
+                const dbLon = parseFloat(route.lon);
+                
+                // Only correct if difference is within reasonable bounds (< 200m)
+                // Large differences might mean lat/lon is school location but route starts elsewhere
+                const dLat = dbLat - startPt[1];
+                const dLon = dbLon - startPt[0];
+                const distMeters = Math.hypot(dLat, dLon) * 111320; // rough meters conversion
+                
+                if (distMeters > 0 && distMeters < 200) {
+                    for (let i = 0; i < coords.length; i++) {
+                        coords[i][0] += dLon;
+                        coords[i][1] += dLat;
+                    }
+                }
+            }
+            
+            const duration = route.duration_s || 1200;
+            // Better staggering: distribute starts across first 10 minutes based on position
+            const staggerBucket = Math.floor((index / totalRoutes) * 100);
+            const startTime = (staggerBucket % 40) * 15 + Math.random() * 30;
+            
+            // Create separate arrays for path (geometry) and timestamps
+            // IMPORTANT: Do NOT mix them in [lon, lat, time] as deck.gl interprets 3rd component as Altitude (Z)!
+            const path = [];
+            const timestamps = [];
+            
+            coords.forEach((coord, i) => {
+                const t = startTime + (i / (coords.length - 1)) * duration;
+                path.push([coord[0], coord[1], 0]); // [lon, lat, 0] - Explicit Z=0
+                timestamps.push(t);
+            });
+            
+            const lastCoord = coords[coords.length - 1];
+            
+            return {
+                path,
+                timestamps,
+                utilization: route.utilization || 0.7,
+                students: route.student_count || 0,
+                routeId: route.route_id,
+                duration: duration,
+                schoolPos: [lastCoord[0], lastCoord[1]] // School endpoint [lon, lat]
+            };
+        }
+        
+        // Get utilization category
+        function getUtilCategory(util) {
+            if (util < 0.5) return 'low';
+            if (util < 0.8) return 'normal';
+            if (util <= 1.0) return 'high';
+            return 'overloaded';
+        }
+        
+        // Get color based on utilization
+        function getRouteColor(utilization) {
+            if (utilization < 0.5) return [6, 182, 212];      // Cyan - low
+            if (utilization < 0.8) return [16, 185, 129];     // Green - normal
+            if (utilization <= 1.0) return [245, 158, 11];    // Amber - high
+            return [239, 68, 68];                              // Red - overloaded
+        }
+        
+        // Initialize
+        async function init() {
+            // Set initial time to something visible
+            currentTime = 100;
+            
+            try {
+                updateLoadingStatus('Fetching route data...', 10);
+                
+                // Load routes from ClickHouse - Riyadh metro area
+                // Expanded bounds to cover all of Riyadh (not just center)
+                const routes = await queryClickHouse(`
+                    SELECT route_id, school_id, student_count, capacity, utilization,
+                           duration_s, distance_m, geometry, shift, lat, lon
+                    FROM school_routes 
+                    WHERE geometry IS NOT NULL AND geometry != ''
+                      AND lat BETWEEN 24.3 AND 25.2
+                      AND lon BETWEEN 46.3 AND 47.3
+                `);
+                
+                if (!routes || routes.length === 0) {
+                    throw new Error('No route data available');
+                }
+                
+                routesData = routes;
+                updateLoadingStatus('Processing routes...', 40);
+                
+                // Convert to trips format
+                tripsData = routes
+                    .map((route, i) => routeToTrip(route, i, routes.length))
+                    .filter(t => t !== null);
+                
+                console.log(`Loaded ${tripsData.length} routes`);
+                updateLoadingStatus('Initializing visualization...', 70);
+                
+                // Calculate max time for loop
+                const maxTime = Math.max(...tripsData.map(t => t.timestamps[t.timestamps.length - 1]));
+                loopLength = maxTime + 300; // Add buffer
+                
+                // Update stats
+                updateStats();
+                updateUtilChart();
+                
+                // Cache filtered trips
+                updateFilteredTrips();
+                
+                // Initialize deck.gl
+                initDeckGL();
+                
+                updateLoadingStatus('Starting animation...', 90);
+                
+                // Start animation
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    startAnimation();
+                }, 500);
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                document.getElementById('loading').innerHTML = `
+                    <iconify-icon icon="solar:danger-triangle-bold" width="64" class="text-red-500"></iconify-icon>
+                    <p class="text-red-400 mt-4 text-lg">Failed to load routes</p>
+                    <p class="text-slate-500 text-sm mt-2">${error.message}</p>
+                    <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700">
+                        Retry
+                    </button>
+                `;
+            }
+        }
+        
+        function updateLoadingStatus(status, progress) {
+            document.getElementById('loading-status').textContent = status;
+            document.getElementById('loading-bar').style.width = progress + '%';
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const filteredRoutes = routesData.filter(r => 
+                currentShift === 'morning' ? !r.shift?.includes('evening') : r.shift?.includes('evening')
+            );
+            
+            const totalStudents = filteredRoutes.reduce((sum, r) => sum + (r.student_count || 0), 0);
+            const totalDistance = filteredRoutes.reduce((sum, r) => sum + (r.distance_m || 0), 0);
+            const avgDuration = filteredRoutes.reduce((sum, r) => sum + (r.duration_s || 0), 0) / (filteredRoutes.length || 1);
+            const avgUtil = filteredRoutes.reduce((sum, r) => sum + (r.utilization || 0), 0) / (filteredRoutes.length || 1);
+            
+            document.getElementById('stat-routes').textContent = fmt.number(filteredRoutes.length);
+            document.getElementById('stat-students').textContent = fmt.number(totalStudents);
+            document.getElementById('stat-distance').textContent = fmt.number(totalDistance / 1000, 0) + ' km';
+            document.getElementById('stat-duration').textContent = Math.round(avgDuration / 60) + ' min';
+            document.getElementById('stat-utilization').textContent = Math.round(avgUtil * 100) + '%';
+        }
+        
+        // Update utilization distribution chart
+        function updateUtilChart() {
+            const counts = { low: 0, normal: 0, high: 0, overloaded: 0 };
+            routesData.forEach(r => {
+                const cat = getUtilCategory(r.utilization || 0.7);
+                counts[cat]++;
+            });
+            
+            const max = Math.max(...Object.values(counts));
+            const colors = { low: '#06b6d4', normal: '#10b981', high: '#f59e0b', overloaded: '#ef4444' };
+            
+            const chart = document.getElementById('util-chart');
+            chart.innerHTML = Object.entries(counts).map(([cat, count]) => {
+                const height = max > 0 ? (count / max) * 100 : 0;
+                return `<div class="util-bar" style="height: ${height}%; background: ${colors[cat]};" title="${cat}: ${count}"></div>`;
+            }).join('');
+        }
+        
+        // Update filtered trips cache (call only when filters change)
+        function updateFilteredTrips() {
+            cachedFilteredTrips = tripsData.filter((t, i) => {
+                const route = routesData[i];
+                const shiftMatch = currentShift === 'morning' ? !route?.shift?.includes('evening') : route?.shift?.includes('evening');
+                const utilCat = getUtilCategory(t.utilization);
+                const filterMatch = filters[utilCat];
+                const focusMatch = !focusMode || (t.utilization >= 0.8);
+                return shiftMatch && filterMatch && focusMatch;
+            });
+            
+            document.getElementById('visible-routes').textContent = fmt.number(cachedFilteredTrips.length);
+            layersNeedUpdate = true;
+        }
+        
+        // Initialize Deck.gl
+        function initDeckGL() {
+            const { DeckGL, TripsLayer, ScatterplotLayer } = deck;
+            
+            // Center on Riyadh
+            let centerLon = 46.7, centerLat = 24.7;
+            if (tripsData.length > 0) {
+                const allCoords = tripsData.flatMap(t => t.path.map(p => [p[0], p[1]])); // Extract x,y from [x,y,0]
+                centerLon = allCoords.reduce((sum, c) => sum + c[0], 0) / allCoords.length;
+                centerLat = allCoords.reduce((sum, c) => sum + c[1], 0) / allCoords.length;
+            }
+            
+            // Fetch map style and configure for Arabic language
+            fetch('https://api.maptiler.com/maps/basic-v2-dark/style.json?key=iJdFi5cQyF7TNCll7kBr')
+                .then(response => response.json())
+                .then(style => {
+                    // Set language to Arabic for all layers with text
+                    if (style.layers) {
+                        style.layers.forEach(layer => {
+                            if (layer.layout && (layer.type === 'symbol' || layer.layout['text-field'])) {
+                                // Use Arabic name field with proper RTL formatting
+                                layer.layout['text-field'] = ['coalesce', ['get', 'name:ar'], ['get', 'name']];
+                                
+                                // Enable RTL text plugin for proper Arabic rendering
+                                if (!layer.layout['text-writing-mode']) {
+                                    layer.layout['text-writing-mode'] = ['horizontal'];
+                                }
+                                
+                                // Set font to support Arabic glyphs
+                                if (layer.layout['text-font']) {
+                                    layer.layout['text-font'] = ['Noto Sans Arabic Regular'];
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Set global font stack to support Arabic
+                    if (style.glyphs) {
+                        style.glyphs = 'https://api.maptiler.com/fonts/{fontstack}/{range}.pbf?key=iJdFi5cQyF7TNCll7kBr';
+                    }
+                    
+                    // Enable RTL text plugin for MapLibre
+                    if (window.maplibregl && maplibregl.setRTLTextPlugin) {
+                        maplibregl.setRTLTextPlugin(
+                            'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js',
+                            null,
+                            true // lazy load
+                        );
+                    }
+                    
+                    deckInstance = new DeckGL({
+                        container: 'deck-canvas',
+                        mapStyle: style,
+                        initialViewState: {
+                            longitude: centerLon,
+                            latitude: centerLat,
+                            zoom: 10.5,
+                            pitch: 45,
+                            bearing: 0
+                        },
+                        controller: true,
+                        layers: [],
+                        getTooltip: getTooltip
+                    });
+                    
+                    // Trigger initial layer update
+                    layersNeedUpdate = true;
+                })
+                .catch(error => {
+                    console.error('Failed to load map style:', error);
+                    // Fallback to default style without Arabic
+                    deckInstance = new DeckGL({
+                        container: 'deck-canvas',
+                        mapStyle: 'https://api.maptiler.com/maps/basic-v2-dark/style.json?key=iJdFi5cQyF7TNCll7kBr',
+                        initialViewState: {
+                            longitude: centerLon,
+                            latitude: centerLat,
+                            zoom: 10.5,
+                            pitch: 45,
+                            bearing: 0
+                        },
+                        controller: true,
+                        layers: [],
+                        getTooltip: getTooltip
+                    });
+                });
+        }
+        
+        // Create layers (only called when filters/layers change)
+        function createLayers() {
+            const { TripsLayer, ScatterplotLayer, HeatmapLayer } = deck;
+            const filteredTrips = cachedFilteredTrips;
+            const activeLayers = [];
+            
+            // Heatmap layer (density visualization)
+            if (layers.heatmap) {
+                activeLayers.push(new HeatmapLayer({
+                    id: 'heatmap-layer',
+                    data: filteredTrips.map(t => ({
+                        position: t.schoolPos,
+                        weight: t.students || 1
+                    })),
+                    getPosition: d => d.position,
+                    getWeight: d => d.weight,
+                    radiusPixels: 60,
+                    intensity: 1,
+                    threshold: 0.03,
+                    colorRange: [
+                        [65, 182, 196, 100],
+                        [127, 205, 187, 150],
+                        [199, 233, 180, 180],
+                        [237, 248, 177, 200],
+                        [255, 237, 160, 220],
+                        [254, 178, 76, 240]
+                    ]
+                }));
+            }
+            
+            // Routes layer
+            if (layers.routes) {
+                activeLayers.push(new TripsLayer({
+                    id: 'trips-layer',
+                    data: filteredTrips,
+                    getPath: d => d.path,
+                    getTimestamps: d => d.timestamps,
+                    getColor: d => getRouteColor(d.utilization),
+                    opacity: 0.8,
+                    widthMinPixels: 2,
+                    widthMaxPixels: 6,
+                    jointRounded: true,
+                    capRounded: true,
+                    trailLength: trailLength,
+                    currentTime: currentTime,
+                    shadowEnabled: false
+                }));
+            }
+            
+            // School endpoints with glow effect
+            if (layers.glow) {
+                activeLayers.push(new ScatterplotLayer({
+                    id: 'endpoints-glow',
+                    data: filteredTrips.map(t => ({
+                        position: t.schoolPos,
+                        utilization: t.utilization
+                    })),
+                    getPosition: d => d.position,
+                    getFillColor: d => [...getRouteColor(d.utilization), 80],
+                    getRadius: 120,
+                    radiusMinPixels: 8,
+                    radiusMaxPixels: 20,
+                    pickable: false
+                }));
+            }
+            
+            // School endpoints core
+            if (layers.schools) {
+                activeLayers.push(new ScatterplotLayer({
+                    id: 'endpoints-layer',
+                    data: filteredTrips.map(t => ({
+                        position: t.schoolPos,
+                        utilization: t.utilization,
+                        routeId: t.routeId,
+                        students: t.students
+                    })),
+                    getPosition: d => d.position,
+                    getFillColor: d => [...getRouteColor(d.utilization), 255],
+                    getRadius: 40,
+                    radiusMinPixels: 3,
+                    radiusMaxPixels: 8,
+                    pickable: true
+                }));
+            }
+            
+            return activeLayers;
+        }
+        
+        // Tooltip
+        function getTooltip({object, layer}) {
+            if (!object) return null;
+            
+            if (layer.id === 'trips-layer') {
+                return {
+                    html: `
+                        <div style="font-weight: 600; margin-bottom: 4px;">Route ${object.routeId || 'Unknown'}</div>
+                        <div>Students: ${object.students}</div>
+                        <div>Utilization: ${Math.round(object.utilization * 100)}%</div>
+                        <div>Duration: ${Math.round(object.duration / 60)} min</div>
+                    `,
+                    style: {
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #475569',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: '#f1f5f9'
+                    }
+                };
+            }
+            
+            return null;
+        }
+        
+        // Animation loop - optimized to only update currentTime
+        function animate() {
+            if (!isPlaying && !autoRotate) return;
+            
+            // FPS calculation
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFrameTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+                document.getElementById('fps-counter').textContent = `${fps} FPS`;
+            }
+            
+            if (isPlaying) {
+                currentTime = (currentTime + animationSpeed) % loopLength;
+            }
+            
+            // Update time display (throttled - only every 5 frames)
+            if (frameCount % 5 === 0) {
+                const minutes = Math.floor(currentTime / 60);
+                const baseHour = currentShift === 'morning' ? 6 : 14;
+                const hour = baseHour + Math.floor(minutes / 60);
+                const min = minutes % 60;
+                document.getElementById('time-display').textContent = 
+                    `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+                
+                // Update timeline
+                const progress = (currentTime / loopLength) * 100;
+                document.getElementById('timeline-progress').style.width = `${progress}%`;
+                document.getElementById('timeline-thumb').style.left = `${progress}%`;
+            }
+            
+            // Auto rotate
+            if (autoRotate && deckInstance) {
+                const viewState = deckInstance.viewState || {};
+                deckInstance.setProps({
+                    viewState: {
+                        ...viewState,
+                        bearing: (viewState.bearing || 0) + 0.1
+                    }
+                });
+            }
+            
+            // Update layers - only recreate if filters changed, otherwise just update time
+            if (deckInstance) {
+                if (layersNeedUpdate) {
+                    deckInstance.setProps({
+                        layers: createLayers()
+                    });
+                    layersNeedUpdate = false;
+                } else {
+                    // Just update currentTime on TripsLayer - much faster!
+                    const currentLayers = deckInstance.props.layers || [];
+                    const updatedLayers = currentLayers.map(layer => {
+                        if (layer.id === 'trips-layer') {
+                            return layer.clone({ currentTime: currentTime });
+                        }
+                        return layer;
+                    });
+                    deckInstance.setProps({ layers: updatedLayers });
+                }
+            }
+            
+            animationFrame = requestAnimationFrame(animate);
+        }
+        
+        // Start animation
+        function startAnimation() {
+            isPlaying = true;
+            document.getElementById('play-btn').classList.remove('paused');
+            document.getElementById('play-icon').setAttribute('icon', 'solar:pause-bold');
+            animate();
+        }
+        
+        // Toggle play/pause
+        function togglePlay() {
+            if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('play-btn').classList.add('paused');
+                document.getElementById('play-icon').setAttribute('icon', 'solar:play-bold');
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                }
+            } else {
+                startAnimation();
+            }
+        }
+        
+        // Set speed
+        function setSpeed(speed) {
+            animationSpeed = speed;
+            document.querySelectorAll('.speed-btn[data-speed]').forEach(btn => {
+                btn.classList.toggle('active', parseFloat(btn.dataset.speed) === speed);
+            });
+        }
+        
+        // Set trail length
+        function setTrailLength(value) {
+            trailLength = parseInt(value);
+            document.getElementById('trail-value').textContent = value;
+        }
+        
+        // Reset animation
+        function resetAnimation() {
+            currentTime = 0;
+        }
+        
+        // Set shift
+        function setShift(shift) {
+            currentShift = shift;
+            
+            document.getElementById('morning-btn').classList.toggle('active', shift === 'morning');
+            document.getElementById('evening-btn').classList.toggle('active', shift === 'evening');
+            
+            updateStats();
+            updateFilteredTrips(); // Recompute cached data
+            currentTime = 0;
+        }
+        
+        // Toggle filter
+        function toggleFilter(category) {
+            filters[category] = !filters[category];
+            const checkbox = event.target;
+            checkbox.parentElement.classList.toggle('checked', filters[category]);
+            updateFilteredTrips(); // Recompute cached data
+        }
+        
+        // Toggle layer visibility
+        function toggleLayer(layer) {
+            layers[layer] = !layers[layer];
+            const checkbox = event.target;
+            checkbox.parentElement.classList.toggle('checked', layers[layer]);
+            layersNeedUpdate = true; // Mark layers for rebuild
+        }
+        
+        // Seek timeline
+        function seekTimeline(event) {
+            const bar = document.getElementById('timeline-bar');
+            const rect = bar.getBoundingClientRect();
+            const percent = (event.clientX - rect.left) / rect.width;
+            currentTime = percent * loopLength;
+        }
+        
+        // Zoom to fit
+        function zoomToFit() {
+            if (!deckInstance || tripsData.length === 0) return;
+            
+            const allCoords = tripsData.flatMap(t => t.path); // [x,y,0] format
+            const minLon = Math.min(...allCoords.map(c => c[0]));
+            const maxLon = Math.max(...allCoords.map(c => c[0]));
+            const minLat = Math.min(...allCoords.map(c => c[1]));
+            const maxLat = Math.max(...allCoords.map(c => c[1]));
+            
+            deckInstance.setProps({
+                viewState: {
+                    longitude: (minLon + maxLon) / 2,
+                    latitude: (minLat + maxLat) / 2,
+                    zoom: 10,
+                    pitch: 45,
+                    bearing: 0,
+                    transitionDuration: 1000
+                }
+            });
+        }
+        
+        // Toggle fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                document.getElementById('fullscreen-icon').setAttribute('icon', 'solar:quit-full-screen-linear');
+            } else {
+                document.exitFullscreen();
+                document.getElementById('fullscreen-icon').setAttribute('icon', 'solar:full-screen-linear');
+            }
+        }
+        
+        // Toggle focus mode (show only problem routes)
+        function toggleFocusMode() {
+            focusMode = !focusMode;
+            document.getElementById('focus-btn').classList.toggle('active', focusMode);
+            updateFilteredTrips(); // Recompute cached data
+        }
+        
+        // Toggle auto rotate
+        function toggleAutoRotate() {
+            autoRotate = !autoRotate;
+            document.getElementById('rotate-btn').classList.toggle('active', autoRotate);
+            if (autoRotate && !isPlaying) {
+                animate();
+            }
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            } else if (e.code === 'ArrowRight') {
+                const speeds = [0.5, 1, 2, 5];
+                const idx = speeds.indexOf(animationSpeed);
+                if (idx < speeds.length - 1) setSpeed(speeds[idx + 1]);
+            } else if (e.code === 'ArrowLeft') {
+                const speeds = [0.5, 1, 2, 5];
+                const idx = speeds.indexOf(animationSpeed);
+                if (idx > 0) setSpeed(speeds[idx - 1]);
+            } else if (e.code === 'KeyR') {
+                toggleAutoRotate();
+            } else if (e.code === 'KeyF') {
+                zoomToFit();
+            } else if (e.code === 'KeyP') {
+                toggleFocusMode();
+            }
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

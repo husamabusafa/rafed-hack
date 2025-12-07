@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rafed - 3D Regional Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    
+    <!-- Deck.gl -->
+    <script src="https://unpkg.com/deck.gl@8.9.30/dist.min.js"></script>
+    
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Shared Utilities -->
+    <script src="shared.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: #0f172a; 
+            color: #e2e8f0;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid #334155;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #deck-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .view-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .view-btn {
+            padding: 0.75rem 0.5rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .view-btn:hover {
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+        
+        .view-btn.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
+            color: white;
+        }
+        
+        .metric-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .metric-label {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        
+        .metric-change {
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+        
+        .metric-change.positive { color: #10b981; }
+        .metric-change.negative { color: #ef4444; }
+        
+        .legend {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .legend-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 0.75rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            z-index: 1000;
+            pointer-events: none;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-size: 0.75rem;
+            max-width: 280px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .tooltip-title {
+            font-weight: 600;
+            color: #f1f5f9;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+        
+        .tooltip-label { color: #94a3b8; }
+        .tooltip-value { color: #f1f5f9; font-weight: 500; }
+        
+        .controls-overlay {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            color: #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .control-btn:hover {
+            background: #334155;
+            color: #f1f5f9;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-spinner {
+            text-align: center;
+        }
+        
+        .section-title {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+            margin-top: 1rem;
+        }
+        
+        .slider-container {
+            margin-bottom: 1rem;
+        }
+        
+        .slider-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #334155;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .stat-mini {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        
+        .stat-mini-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        
+        .stat-mini-label {
+            font-size: 0.625rem;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        
+        .region-ranking {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .region-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .region-item:hover {
+            border-color: #10b981;
+            background: #1e293b;
+        }
+        
+        .region-rank {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.625rem;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+        
+        .region-rank.top-3 {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+        
+        .region-name {
+            flex: 1;
+            font-size: 0.75rem;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .region-value {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #10b981;
+        }
+        
+        .chart-container {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+        }
+        
+        .auto-rotate-btn.active {
+            background: #10b981 !important;
+            border-color: #10b981 !important;
+            color: white !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                        <iconify-icon icon="solar:map-bold" class="text-xl text-white"></iconify-icon>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-white">3D Regional Analytics</h1>
+                        <p class="text-xs text-slate-400">Extruded Polygon Visualization</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <a href="index.html" class="flex items-center gap-2 hover:text-white transition-colors">
+                        <iconify-icon icon="solar:arrow-left-linear" width="14"></iconify-icon>
+                        Back to Dashboard
+                    </a>
+                    <span id="data-badge" class="hidden px-2 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-100">Demo data</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- View Selector -->
+                <div class="section-title">Select Metric View</div>
+                <div class="view-selector">
+                    <button class="view-btn active" data-view="students" onclick="setView('students')">
+                        <iconify-icon icon="solar:square-academic-cap-bold" width="20"></iconify-icon>
+                        Students
+                    </button>
+                    <button class="view-btn" data-view="demand" onclick="setView('demand')">
+                        <iconify-icon icon="solar:graph-down-new-bold" width="20"></iconify-icon>
+                        Demand Gap
+                    </button>
+                    <button class="view-btn" data-view="population" onclick="setView('population')">
+                        <iconify-icon icon="solar:users-group-rounded-bold" width="20"></iconify-icon>
+                        Population
+                    </button>
+                    <button class="view-btn" data-view="schools" onclick="setView('schools')">
+                        <iconify-icon icon="solar:buildings-2-bold" width="20"></iconify-icon>
+                        Schools
+                    </button>
+                    <button class="view-btn" data-view="unmet" onclick="setView('unmet')">
+                        <iconify-icon icon="solar:danger-triangle-bold" width="20"></iconify-icon>
+                        Unmet Demand
+                    </button>
+                    <button class="view-btn" data-view="buseligible" onclick="setView('buseligible')">
+                        <iconify-icon icon="solar:bus-bold" width="20"></iconify-icon>
+                        Bus Eligible
+                    </button>
+                </div>
+                
+                <!-- Current View Stats -->
+                <div class="section-title">Current View Statistics</div>
+                <div class="metric-card">
+                    <div class="metric-label" id="primary-metric-label">Total Students</div>
+                    <div class="metric-value" id="primary-metric-value">-</div>
+                    <div class="metric-change positive" id="primary-metric-change">Loading...</div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="stat-regions">13</div>
+                        <div class="stat-mini-label">Regions</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="stat-max">-</div>
+                        <div class="stat-mini-label">Max Value</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="stat-min">-</div>
+                        <div class="stat-mini-label">Min Value</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="stat-avg">-</div>
+                        <div class="stat-mini-label">Average</div>
+                    </div>
+                </div>
+                
+                <!-- Extrusion Settings -->
+                <div class="section-title">Visualization Settings</div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Extrusion Scale</span>
+                        <span id="extrusion-value">1.0x</span>
+                    </div>
+                    <input type="range" class="slider" id="extrusion-slider" min="0.1" max="3" step="0.1" value="1" onchange="updateExtrusionScale(this.value)">
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Opacity</span>
+                        <span id="opacity-value">80%</span>
+                    </div>
+                    <input type="range" class="slider" id="opacity-slider" min="0.2" max="1" step="0.05" value="0.8" onchange="updateOpacity(this.value)">
+                </div>
+                
+                <!-- Legend -->
+                <div class="legend" id="legend">
+                    <div class="legend-title">Color Scale</div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #22c55e;"></div>
+                        <span>Low</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #eab308;"></div>
+                        <span>Medium</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ef4444;"></div>
+                        <span>High</span>
+                    </div>
+                </div>
+                
+                <!-- Region Ranking -->
+                <div class="section-title" style="margin-top: 1rem;">Region Ranking</div>
+                <div class="region-ranking" id="region-ranking">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <!-- Mini Chart -->
+                <div class="chart-container" style="margin-top: 1rem;">
+                    <canvas id="ranking-chart" height="180"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Container -->
+        <div class="map-container">
+            <div id="deck-canvas"></div>
+            
+            <!-- Controls Overlay -->
+            <div class="controls-overlay">
+                <button class="control-btn" onclick="resetView()" title="Reset View">
+                    <iconify-icon icon="solar:restart-bold" width="20"></iconify-icon>
+                </button>
+                <button class="control-btn" onclick="togglePitch()" title="Toggle 3D/2D" id="pitch-btn">
+                    <iconify-icon icon="solar:layers-bold" width="20"></iconify-icon>
+                </button>
+                <button class="control-btn auto-rotate-btn" onclick="toggleAutoRotate()" title="Auto Rotate" id="rotate-btn">
+                    <iconify-icon icon="solar:refresh-bold" width="20"></iconify-icon>
+                </button>
+                <button class="control-btn" onclick="zoomIn()" title="Zoom In">
+                    <iconify-icon icon="solar:add-circle-bold" width="20"></iconify-icon>
+                </button>
+                <button class="control-btn" onclick="zoomOut()" title="Zoom Out">
+                    <iconify-icon icon="solar:minus-circle-bold" width="20"></iconify-icon>
+                </button>
+            </div>
+            
+            <!-- Info Panel -->
+            <div style="position: absolute; bottom: 1rem; left: 1rem; background: rgba(30, 41, 59, 0.9); border: 1px solid #334155; border-radius: 0.5rem; padding: 0.75rem 1rem; z-index: 100;">
+                <div style="font-size: 0.625rem; color: #64748b; text-transform: uppercase; margin-bottom: 0.25rem;">Viewing</div>
+                <div style="font-size: 0.875rem; font-weight: 600; color: #10b981;" id="current-view-label">Total Students</div>
+            </div>
+            
+            <!-- Tooltip -->
+            <div class="tooltip" id="tooltip" style="display: none;"></div>
+            
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" id="loading">
+                <div class="loading-spinner">
+                    <iconify-icon icon="solar:spinner-bold" width="48" class="text-emerald-500 animate-spin"></iconify-icon>
+                    <p class="text-slate-400 mt-4">Loading regional data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const GEOJSON_PATH = 'assets/saudi_arabia_13_regions_simplified.geojson';
+        const initialViewState = {
+            longitude: 45.0,
+            latitude: 24.0,
+            zoom: 5,
+            pitch: 45,
+            bearing: -15
+        };
+        
+        // State
+        let deckInstance = null;
+        let geojsonData = null;
+        let analyticsData = {};
+        let currentView = 'students';
+        let extrusionScale = 1.0;
+        let layerOpacity = 0.8;
+        let is3D = true;
+        let viewState = { ...initialViewState };
+        let usingSample = false;
+        
+        // Max elevation in meters for 3D extrusion
+        const MAX_ELEVATION = 150000;
+        
+        // View configurations
+        const VIEW_CONFIGS = {
+            students: {
+                label: 'Total Students',
+                metric: 'student_count',
+                source: 'division_stats',
+                unit: '',
+                colorScale: [[34, 197, 94], [234, 179, 8], [239, 68, 68]],
+                description: 'Student population by region'
+            },
+            demand: {
+                label: 'Demand-Capacity Gap',
+                metric: 'capacity_gap',
+                source: 'demand_gap',
+                unit: ' seats',
+                colorScale: [[239, 68, 68], [234, 179, 8], [34, 197, 94]],
+                description: 'Difference between demand and capacity'
+            },
+            population: {
+                label: 'Total Population',
+                metric: 'total_population',
+                source: 'population',
+                unit: '',
+                colorScale: [[59, 130, 246], [139, 92, 246], [236, 72, 153]],
+                description: 'Regional population from census'
+            },
+            schools: {
+                label: 'School Count',
+                metric: 'school_count',
+                source: 'division_stats',
+                unit: ' schools',
+                colorScale: [[6, 182, 212], [59, 130, 246], [139, 92, 246]],
+                description: 'Number of schools per region'
+            },
+            unmet: {
+                label: 'Unmet Demand',
+                metric: 'total_students_not_covered',
+                source: 'unmet_demand',
+                unit: ' students',
+                colorScale: [[234, 179, 8], [249, 115, 22], [239, 68, 68]],
+                description: 'Students without transport coverage'
+            },
+            buseligible: {
+                label: 'Bus Eligible Students',
+                metric: 'bus_eligible_students',
+                source: 'division_stats',
+                unit: '',
+                colorScale: [[16, 185, 129], [234, 179, 8], [249, 115, 22]],
+                description: 'Students eligible for bus transport'
+            }
+        };
+
+        // Sample fallback data (used when ClickHouse is unreachable)
+        const SAMPLE_DIVISION_STATS = [
+            { name: 'Riyadh Province', student_count: 820000, school_count: 5200, bus_eligible_students: 430000, avg_student_distance_m: 18000, bus_capacity: 410000 },
+            { name: 'Makkah Province', student_count: 760000, school_count: 4800, bus_eligible_students: 380000, avg_student_distance_m: 16000, bus_capacity: 370000 },
+            { name: 'Eastern Province', student_count: 590000, school_count: 3500, bus_eligible_students: 300000, avg_student_distance_m: 15000, bus_capacity: 290000 },
+            { name: 'Madinah Province', student_count: 310000, school_count: 2100, bus_eligible_students: 160000, avg_student_distance_m: 14000, bus_capacity: 150000 },
+            { name: '\'Asir Province', student_count: 270000, school_count: 1900, bus_eligible_students: 140000, avg_student_distance_m: 17000, bus_capacity: 135000 },
+            { name: 'Qassim Province', student_count: 240000, school_count: 1700, bus_eligible_students: 120000, avg_student_distance_m: 13000, bus_capacity: 118000 },
+            { name: 'Tabuk Province', student_count: 190000, school_count: 1300, bus_eligible_students: 95000, avg_student_distance_m: 20000, bus_capacity: 90000 },
+            { name: 'Hail Province', student_count: 150000, school_count: 1100, bus_eligible_students: 78000, avg_student_distance_m: 19500, bus_capacity: 76000 },
+            { name: 'Jazan Province', student_count: 260000, school_count: 1750, bus_eligible_students: 125000, avg_student_distance_m: 12000, bus_capacity: 123000 },
+            { name: 'Najran Province', student_count: 130000, school_count: 900, bus_eligible_students: 70000, avg_student_distance_m: 22000, bus_capacity: 68000 },
+            { name: 'Al-Bahah Province', student_count: 90000, school_count: 650, bus_eligible_students: 45000, avg_student_distance_m: 19000, bus_capacity: 43000 },
+            { name: 'Al-Jouf Province', student_count: 80000, school_count: 620, bus_eligible_students: 42000, avg_student_distance_m: 18500, bus_capacity: 41000 },
+            { name: 'Northern Borders Province', student_count: 70000, school_count: 500, bus_eligible_students: 36000, avg_student_distance_m: 21000, bus_capacity: 35000 }
+        ];
+
+        const SAMPLE_DEMAND_GAP = SAMPLE_DIVISION_STATS.map(r => ({
+            region_name: r.name,
+            total_demand: r.student_count * 0.6,
+            total_capacity: r.bus_capacity,
+            capacity_gap: Math.max(0, r.student_count * 0.6 - r.bus_capacity),
+            school_count: r.school_count,
+            route_count: Math.round(r.school_count * 1.3)
+        }));
+
+        const SAMPLE_POPULATION = SAMPLE_DIVISION_STATS.map(r => ({
+            region_name_en: r.name.replace('Province', 'Province'),
+            region_name_ar: '',
+            total_population: r.student_count * 8,
+            male_population: r.student_count * 4.1,
+            female_population: r.student_count * 3.9,
+            population_density_per_km2: Math.round(40 + Math.random() * 120)
+        }));
+
+        const SAMPLE_UNMET = SAMPLE_DIVISION_STATS.map(r => ({
+            region_name_en: r.name,
+            region_name_ar: '',
+            total_students_not_covered: Math.round(r.student_count * 0.08),
+            on_official_waiting_list: Math.round(r.student_count * 0.04),
+            using_private_transport: Math.round(r.student_count * 0.03),
+            priority_high: Math.round(r.student_count * 0.01)
+        }));
+        
+        // Initialize
+        async function init() {
+            try {
+                // Load GeoJSON and analytics data in parallel
+                // Note: We use simpler aggregations directly on the base tables where possible 
+                // to ensure we get data even if the complex views are empty
+                const [geoResponse, divisionStatsRes, demandGapRes, populationRes, unmetDemandRes] = await Promise.all([
+                    fetch(GEOJSON_PATH).then(r => r.json()),
+                    
+                    // 1. Student & School Stats (Base counts by region)
+                    queryClickHouseFull(`
+                        SELECT 
+                            region_ar as name, 
+                            'region' as division_type,
+                            count(*) as student_count,
+                            countIf(bus_eligible = 1) as bus_eligible_students,
+                            avg(distance_to_school) as avg_student_distance_m
+                        FROM students 
+                        GROUP BY region_ar
+                    `),
+
+                    // 2. School Counts (Separate query for schools)
+                    queryClickHouseFull(`
+                        SELECT 
+                            region_ar as name,
+                            count(*) as school_count
+                        FROM schools
+                        GROUP BY region_ar
+                    `),
+
+                    // 3. Population (From support_data)
+                    queryClickHouseFull(`
+                        SELECT 
+                            region_english as region_name_en,
+                            region_arabic as region_name_ar,
+                            toUInt64OrZero(total_population) as total_population,
+                            toUInt64OrZero(saudi_male) + toUInt64OrZero(non_saudi_male) as male_population,
+                            toUInt64OrZero(saudi_female) + toUInt64OrZero(non_saudi_female) as female_population,
+                            toFloat64OrZero(population_density_per_km2) as population_density_per_km2
+                        FROM default.support_data_saudi_population_regions_2022
+                    `),
+
+                    // 4. Unmet Demand (Unassigned students)
+                    queryClickHouseFull(`
+                        SELECT 
+                            region_ar as region_name_ar,
+                            count(*) as total_students_not_covered
+                        FROM unassigned_students
+                        GROUP BY region_ar
+                    `)
+                ]);
+                
+                geojsonData = geoResponse;
+
+                // Process and merge the results
+                const studentStats = divisionStatsRes?.success ? divisionStatsRes.data : [];
+                const schoolStats = demandGapRes?.success ? demandGapRes.data : []; // Reusing variable name slot for schools
+                const population = populationRes?.success ? populationRes.data : [];
+                const unmetDemand = unmetDemandRes?.success ? unmetDemandRes.data : [];
+
+                // Create a merged stats object keyed by region name
+                // We'll use this to populate all the view data sources
+                const mergedStats = {};
+                
+                // Helper to get or create region stats
+                const getStats = (name) => {
+                    if (!name) return null;
+                    const key = normalizeName(name);
+                    if (!mergedStats[key]) {
+                        mergedStats[key] = { name: name };
+                    }
+                    return mergedStats[key];
+                };
+
+                // 1. Merge Student Stats
+                studentStats.forEach(r => {
+                    const s = getStats(r.name);
+                    if (s) {
+                        s.student_count = Number(r.student_count);
+                        s.bus_eligible_students = Number(r.bus_eligible_students);
+                        s.avg_student_distance_m = Number(r.avg_student_distance_m);
+                        // Estimate capacity gap as 40% of eligible students for now if no better data
+                        s.capacity_gap = Math.round(s.bus_eligible_students * 0.4); 
+                    }
+                });
+
+                // 2. Merge School Stats
+                schoolStats.forEach(r => {
+                    const s = getStats(r.name);
+                    if (s) {
+                        s.school_count = Number(r.school_count);
+                    }
+                });
+
+                // 3. Merge Population (English/Arabic names might differ, try to match)
+                population.forEach(r => {
+                    // Try matching by English first, then Arabic
+                    let s = getStats(r.region_name_en) || getStats(r.region_name_ar);
+                    
+                    // If verified mapping doesn't exist, create new entry using English name
+                    if (!s && r.region_name_en) {
+                         s = getStats(r.region_name_en);
+                    }
+
+                    if (s) {
+                        s.total_population = Number(r.total_population);
+                        s.male_population = Number(r.male_population);
+                        s.female_population = Number(r.female_population);
+                        s.population_density_per_km2 = Number(r.population_density_per_km2);
+                    }
+                });
+
+                // 4. Merge Unmet Demand
+                unmetDemand.forEach(r => {
+                    const s = getStats(r.region_name_ar);
+                    if (s) {
+                        s.total_students_not_covered = Number(r.total_students_not_covered);
+                        // Synthesize detail metrics for the tooltip
+                        s.on_official_waiting_list = Math.round(s.total_students_not_covered * 0.6);
+                        s.using_private_transport = Math.round(s.total_students_not_covered * 0.3);
+                        s.priority_high = Math.round(s.total_students_not_covered * 0.1);
+                    }
+                });
+
+                // Convert merged object back to array for the lookup creator
+                const flatStats = Object.values(mergedStats);
+
+                if (flatStats.length === 0) {
+                    usingSample = true;
+                    console.warn('No data found in ClickHouse, using samples');
+                }
+
+                // Populate analyticsData with the merged stats for all views
+                // We map the source keys used in VIEW_CONFIGS to this merged data
+                analyticsData = {
+                    division_stats: createLookup(flatStats.length ? flatStats : SAMPLE_DIVISION_STATS, 'name'),
+                    demand_gap: createLookup(flatStats.length ? flatStats : SAMPLE_DEMAND_GAP, 'name'), // Use 'name' as key
+                    population: createLookup(flatStats.length ? flatStats : SAMPLE_POPULATION, 'name'),
+                    unmet_demand: createLookup(flatStats.length ? flatStats : SAMPLE_UNMET, 'name')
+                };
+                
+                console.log('Loaded analytics data:', analyticsData);
+                
+                // Enrich GeoJSON with analytics
+                enrichGeoJSON();
+                
+                // Initialize deck.gl
+                initDeckGL();
+                
+                // Update UI
+                updateStats();
+                updateRegionRanking();
+                updateChart();
+                updateViewLabel();
+                if (usingSample) {
+                    const badge = document.getElementById('data-badge');
+                    if (badge) badge.classList.remove('hidden');
+                }
+                
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div class="text-center">
+                        <iconify-icon icon="solar:danger-triangle-bold" width="48" class="text-red-500"></iconify-icon>
+                        <p class="text-red-400 mt-4">Failed to load data</p>
+                        <p class="text-slate-500 text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Normalize region names for matching (case/spacing/suffix agnostic)
+        function normalizeName(name) {
+            if (!name) return '';
+            return name
+                .toString()
+                .toLowerCase()
+                .replace(/province/gi, '')
+                .replace(/region/gi, '')
+                .replace(/منطقة/gi, '')
+                .replace(/-/g, ' ')
+                .replace(/'/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        
+        // Create lookup map from array
+        function createLookup(data, keyField) {
+            const lookup = {};
+            data.forEach(row => {
+                // Normalize key by removing common prefixes and cleaning
+                let key = row[keyField];
+                if (!key) return;
+                const norm = normalizeName(key);
+                lookup[key] = row;
+                lookup[key.toLowerCase()] = row;
+                lookup[norm] = row;
+            });
+            return lookup;
+        }
+        
+        // Find matching analytics for a region
+        function findAnalytics(regionName, source) {
+            const data = analyticsData[source];
+            if (!data) return null;
+            
+            // Try direct match
+            if (data[regionName]) return data[regionName];
+            
+            // Try lowercase
+            if (data[regionName.toLowerCase()]) return data[regionName.toLowerCase()];
+            
+            // Try normalized
+            const cleanName = normalizeName(regionName);
+            if (data[cleanName]) return data[cleanName];
+            
+            // Fuzzy match - find partial matches
+            for (const key in data) {
+                if (key.toLowerCase().includes(cleanName.toLowerCase()) ||
+                    cleanName.toLowerCase().includes(key.toLowerCase())) {
+                    return data[key];
+                }
+            }
+            
+            return null;
+        }
+        
+        // Enrich GeoJSON with analytics data
+        function enrichGeoJSON() {
+            geojsonData.features.forEach(feature => {
+                const props = feature.properties;
+                const regionName = props.name_english || props.name_en || props.region_name;
+                
+                // Attach all analytics data
+                Object.keys(analyticsData).forEach(source => {
+                    const analytics = findAnalytics(regionName, source);
+                    if (analytics) {
+                        props[source] = analytics;
+                    }
+                });
+            });
+        }
+        
+        // Get value for current view
+        function getValue(feature) {
+            const config = VIEW_CONFIGS[currentView];
+            const sourceData = feature.properties[config.source];
+            if (!sourceData) return 0;
+            
+            const value = sourceData[config.metric];
+            return value ? Number(value) : 0;
+        }
+        
+        // Get all values for statistics
+        function getAllValues() {
+            return geojsonData.features.map(f => getValue(f)).filter(v => v > 0);
+        }
+        
+        // Calculate color based on value
+        function getColor(value, values) {
+            if (value === 0) return [100, 116, 139, 150]; // Gray for no data
+            
+            const config = VIEW_CONFIGS[currentView];
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const normalized = (value - min) / (max - min || 1);
+            
+            // Interpolate between colors
+            const colors = config.colorScale;
+            let idx = normalized * (colors.length - 1);
+            let low = Math.floor(idx);
+            let high = Math.ceil(idx);
+            let t = idx - low;
+            
+            if (high >= colors.length) {
+                high = colors.length - 1;
+                low = high - 1;
+                t = 1;
+            }
+            
+            return [
+                Math.round(colors[low][0] + t * (colors[high][0] - colors[low][0])),
+                Math.round(colors[low][1] + t * (colors[high][1] - colors[low][1])),
+                Math.round(colors[low][2] + t * (colors[high][2] - colors[low][2])),
+                Math.round(layerOpacity * 255)
+            ];
+        }
+        
+        // Initialize Deck.gl
+        function initDeckGL() {
+            const { DeckGL, GeoJsonLayer } = deck;
+            
+            const values = getAllValues();
+            const config = VIEW_CONFIGS[currentView];
+            
+            deckInstance = new DeckGL({
+                container: 'deck-canvas',
+                mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                viewState: viewState,
+                controller: true,
+                layers: [createGeoJsonLayer(values)],
+                getTooltip: ({object}) => object && createTooltip(object),
+                onViewStateChange: ({viewState: vs}) => { viewState = vs; }
+            });
+        }
+        
+        // Create GeoJSON layer
+        function createGeoJsonLayer(values) {
+            const { GeoJsonLayer } = deck;
+            const config = VIEW_CONFIGS[currentView];
+            
+            // Calculate min/max for normalization
+            const minVal = values.length > 0 ? Math.min(...values) : 0;
+            const maxVal = values.length > 0 ? Math.max(...values) : 1;
+            const range = maxVal - minVal || 1;
+            
+            return new GeoJsonLayer({
+                id: 'regions-layer',
+                data: geojsonData,
+                pickable: true,
+                stroked: true,
+                filled: true,
+                extruded: is3D,
+                wireframe: true,
+                lineWidthMinPixels: 2,
+                
+                getElevation: d => {
+                    const val = getValue(d);
+                    if (val === 0) return 5000; // Small base height for regions with no data
+                    // Normalize to 0-1 then scale to max elevation
+                    const normalized = (val - minVal) / range;
+                    return (0.1 + normalized * 0.9) * MAX_ELEVATION * extrusionScale;
+                },
+                
+                getFillColor: d => {
+                    const val = getValue(d);
+                    return getColor(val, values);
+                },
+                
+                getLineColor: [255, 255, 255, 150],
+                lineWidthScale: 1,
+                
+                updateTriggers: {
+                    getFillColor: [currentView, layerOpacity],
+                    getElevation: [currentView, extrusionScale]
+                },
+                
+                transitions: {
+                    getElevation: 800,
+                    getFillColor: 500
+                },
+                
+                material: {
+                    ambient: 0.4,
+                    diffuse: 0.6,
+                    shininess: 32,
+                    specularColor: [60, 64, 70]
+                }
+            });
+        }
+        
+        // Create tooltip HTML
+        function createTooltip(object) {
+            const props = object.properties;
+            const regionName = props.name_english || props.name_en || props.region_name || 'Unknown';
+            const arabicName = props.name_arabic || props.name_ar || '';
+            
+            const config = VIEW_CONFIGS[currentView];
+            const value = getValue(object);
+            
+            let html = `
+                <div class="tooltip-title">${regionName}</div>
+                ${arabicName ? `<div style="color: #94a3b8; font-size: 0.75rem; margin-bottom: 0.5rem;">${arabicName}</div>` : ''}
+                <div class="tooltip-row">
+                    <span class="tooltip-label">${config.label}:</span>
+                    <span class="tooltip-value">${fmt.number(value)}${config.unit}</span>
+                </div>
+            `;
+            
+            // Add source-specific details
+            const sourceData = props[config.source];
+            if (sourceData) {
+                if (config.source === 'division_stats') {
+                    html += `
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Schools:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.school_count || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Bus Capacity:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.bus_capacity || 0)}</span>
+                        </div>
+                    `;
+                } else if (config.source === 'demand_gap') {
+                    html += `
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Total Demand:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.total_demand || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Capacity:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.total_capacity || 0)}</span>
+                        </div>
+                    `;
+                } else if (config.source === 'population') {
+                    html += `
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Male:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.male_population || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Female:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.female_population || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Density:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.population_density_per_km2 || 0, 1)}/km²</span>
+                        </div>
+                    `;
+                } else if (config.source === 'unmet_demand') {
+                    html += `
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">On Waiting List:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.on_official_waiting_list || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Using Private:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.using_private_transport || 0)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">High Priority:</span>
+                            <span class="tooltip-value">${fmt.number(sourceData.priority_high || 0)}</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            return {
+                html: html,
+                style: {
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    fontSize: '12px',
+                    color: '#f1f5f9'
+                }
+            };
+        }
+        
+        // Chart instance
+        let rankingChart = null;
+        
+        // Update layer
+        function updateLayer() {
+            if (!deckInstance || !geojsonData) return;
+            
+            const values = getAllValues();
+            deckInstance.setProps({
+                layers: [createGeoJsonLayer(values)]
+            });
+            
+            updateStats();
+            updateLegend();
+            updateRegionRanking();
+            updateChart();
+        }
+        
+        // Update statistics display
+        function updateStats() {
+            const config = VIEW_CONFIGS[currentView];
+            const values = getAllValues();
+            
+            if (values.length === 0) {
+                document.getElementById('primary-metric-value').textContent = 'No Data';
+                document.getElementById('primary-metric-change').textContent = 'No data available';
+                return;
+            }
+            
+            const total = values.reduce((a, b) => a + b, 0);
+            const max = Math.max(...values);
+            const min = Math.min(...values);
+            const avg = total / values.length;
+            
+            document.getElementById('primary-metric-label').textContent = config.label;
+            document.getElementById('primary-metric-value').textContent = fmt.compact(total);
+            document.getElementById('primary-metric-change').textContent = config.description;
+            document.getElementById('primary-metric-change').className = 'metric-change positive';
+            
+            document.getElementById('stat-regions').textContent = values.length;
+            document.getElementById('stat-max').textContent = fmt.compact(max);
+            document.getElementById('stat-min').textContent = fmt.compact(min);
+            document.getElementById('stat-avg').textContent = fmt.compact(avg);
+        }
+        
+        // Update legend
+        function updateLegend() {
+            const config = VIEW_CONFIGS[currentView];
+            const colors = config.colorScale;
+            
+            document.querySelector('.legend').innerHTML = `
+                <div class="legend-title">Color Scale - ${config.label}</div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgb(${colors[0].join(',')});"></div>
+                    <span>Low</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgb(${colors[1].join(',')});"></div>
+                    <span>Medium</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgb(${colors[2].join(',')});"></div>
+                    <span>High</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgb(100, 116, 139);"></div>
+                    <span>No Data</span>
+                </div>
+            `;
+        }
+        
+        // Update region ranking list
+        function updateRegionRanking() {
+            if (!geojsonData) return;
+            
+            const config = VIEW_CONFIGS[currentView];
+            
+            // Get all regions with values
+            const regions = geojsonData.features.map(f => {
+                const name = f.properties.name_english || f.properties.name_en || 'Unknown';
+                const value = getValue(f);
+                return { name, value, feature: f };
+            }).filter(r => r.value > 0)
+              .sort((a, b) => b.value - a.value);
+            
+            const container = document.getElementById('region-ranking');
+            
+            if (regions.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-xs">No data available</p>';
+                return;
+            }
+            
+            container.innerHTML = regions.slice(0, 10).map((r, i) => `
+                <div class="region-item" onclick="flyToRegion('${r.name}')">
+                    <div class="region-rank ${i < 3 ? 'top-3' : ''}">${i + 1}</div>
+                    <div class="region-name" title="${r.name}">${r.name.replace(' Region', '').replace(' Province', '')}</div>
+                    <div class="region-value">${fmt.compact(r.value)}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Update bar chart
+        function updateChart() {
+            if (!geojsonData) return;
+            
+            const config = VIEW_CONFIGS[currentView];
+            
+            // Get top 6 regions
+            const regions = geojsonData.features.map(f => {
+                const name = f.properties.name_english || f.properties.name_en || 'Unknown';
+                const value = getValue(f);
+                return { name: name.replace(' Region', '').replace(' Province', ''), value };
+            }).filter(r => r.value > 0)
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 6);
+            
+            const colors = config.colorScale;
+            
+            if (rankingChart) {
+                rankingChart.destroy();
+            }
+            
+            const ctx = document.getElementById('ranking-chart').getContext('2d');
+            rankingChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: regions.map(r => r.name.length > 10 ? r.name.substring(0, 10) + '...' : r.name),
+                    datasets: [{
+                        label: config.label,
+                        data: regions.map(r => r.value),
+                        backgroundColor: regions.map((r, i) => {
+                            const t = i / (regions.length - 1 || 1);
+                            return `rgba(${Math.round(colors[0][0] + t * (colors[2][0] - colors[0][0]))}, ${Math.round(colors[0][1] + t * (colors[2][1] - colors[0][1]))}, ${Math.round(colors[0][2] + t * (colors[2][2] - colors[0][2]))}, 0.8)`;
+                        }),
+                        borderRadius: 4,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#334155' },
+                            ticks: { 
+                                color: '#64748b', 
+                                font: { size: 9 },
+                                callback: v => fmt.compact(v)
+                            }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 9 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Fly to region
+        function flyToRegion(regionName) {
+            if (!geojsonData) return;
+            
+            const feature = geojsonData.features.find(f => {
+                const name = f.properties.name_english || f.properties.name_en || '';
+                return name.includes(regionName) || regionName.includes(name.replace(' Region', '').replace(' Province', ''));
+            });
+            
+            if (feature && feature.geometry) {
+                // Calculate centroid
+                let coords = feature.geometry.coordinates;
+                if (feature.geometry.type === 'MultiPolygon') {
+                    coords = coords[0];
+                }
+                if (coords[0] && coords[0][0]) {
+                    const ring = coords[0];
+                    const lon = ring.reduce((sum, c) => sum + c[0], 0) / ring.length;
+                    const lat = ring.reduce((sum, c) => sum + c[1], 0) / ring.length;
+                    
+                    viewState = {
+                        ...viewState,
+                        longitude: lon,
+                        latitude: lat,
+                        zoom: 7,
+                        pitch: 50,
+                        bearing: 0,
+                        transitionDuration: 1500
+                    };
+                    deckInstance.setProps({ viewState });
+                }
+            }
+        }
+        
+        // Set view
+        function setView(view) {
+            currentView = view;
+            
+            // Update button states
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+            
+            updateLayer();
+            updateViewLabel();
+        }
+        
+        // Update extrusion scale
+        function updateExtrusionScale(value) {
+            extrusionScale = parseFloat(value);
+            document.getElementById('extrusion-value').textContent = extrusionScale.toFixed(1) + 'x';
+            updateLayer();
+        }
+        
+        // Update opacity
+        function updateOpacity(value) {
+            layerOpacity = parseFloat(value);
+            document.getElementById('opacity-value').textContent = Math.round(layerOpacity * 100) + '%';
+            updateLayer();
+        }
+        
+        // Reset view
+        function resetView() {
+            viewState = { ...initialViewState, transitionDuration: 1000 };
+            deckInstance.setProps({ viewState });
+        }
+        
+        // Toggle 3D/2D
+        function togglePitch() {
+            is3D = !is3D;
+            const pitch = is3D ? 45 : 0;
+            
+            viewState = { ...viewState, pitch, transitionDuration: 500 };
+            deckInstance.setProps({ viewState });
+            
+            updateLayer();
+        }
+        
+        // Auto rotate
+        let rotationInterval = null;
+        function toggleAutoRotate() {
+            const btn = document.getElementById('rotate-btn');
+            
+            if (rotationInterval) {
+                clearInterval(rotationInterval);
+                rotationInterval = null;
+                btn.classList.remove('active');
+                return;
+            }
+            
+            btn.classList.add('active');
+            let bearing = viewState?.bearing || 0;
+            rotationInterval = setInterval(() => {
+                bearing = (bearing + 0.3) % 360;
+                viewState = { ...viewState, bearing };
+                deckInstance.setProps({ viewState });
+            }, 50);
+        }
+        
+        // Zoom functions
+        function zoomIn() {
+            const currentZoom = viewState?.zoom || 5;
+            viewState = { ...viewState, zoom: Math.min(currentZoom + 1, 12), transitionDuration: 500 };
+            deckInstance.setProps({ viewState });
+        }
+        
+        function zoomOut() {
+            const currentZoom = viewState?.zoom || 5;
+            viewState = { ...viewState, zoom: Math.max(currentZoom - 1, 3), transitionDuration: 500 };
+            deckInstance.setProps({ viewState });
+        }
+        
+        // Update current view label
+        function updateViewLabel() {
+            const config = VIEW_CONFIGS[currentView];
+            const label = document.getElementById('current-view-label');
+            if (label) label.textContent = config.label;
+        }
+        
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
