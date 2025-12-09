@@ -26,9 +26,9 @@ export interface ClickHouseQuery {
   timeout?: number; // Query timeout in ms
 }
 
-export interface HandlebarsTemplate {
-  template: string; // Handlebars template string
-  context?: Record<string, any>; // Context data for template
+export interface JSTransformFunction {
+  code: string; // JavaScript function code that takes query result and returns transformed data
+  // The function should be in format: function transform(data) { return {...}; }
 }
 
 export interface AlaSQLTransform {
@@ -41,8 +41,8 @@ export type DataSource = PostgreSQLQuery | GraphQLQuery | StaticData | ClickHous
 export interface ComponentDataConfig {
   source: DataSource;
   refreshInterval?: number; // Auto-refresh interval in ms
-  handlebarsTemplate?: HandlebarsTemplate; // Template for data transformation
-  alasqlTransform?: AlaSQLTransform; // SQL-like transformation
+  jsTransform?: JSTransformFunction; // JS function for data transformation
+  alasqlTransform?: AlaSQLTransform; // SQL-like transformation (optional, applied after JS)
   cache?: {
     enabled: boolean;
     ttl?: number; // Time to live in ms

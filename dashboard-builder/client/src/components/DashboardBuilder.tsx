@@ -24,7 +24,7 @@ const EMPTY_DASHBOARD: DashboardState = {
   }
 };
 
-const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'cmhijn9sv0007qggw7c4ipwm3';
+const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'cmiqj4p0w0004qgg4g71gza8w';
 const AGENT_BASE_URL = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:3900';
 
 export default function DashboardBuilder() {

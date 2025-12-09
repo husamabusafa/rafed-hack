@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Slide } from '../tools/presentationTools';
 
 interface PresentationDisplayProps {
@@ -7,6 +7,50 @@ interface PresentationDisplayProps {
 
 export function PresentationDisplay({ slides }: PresentationDisplayProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const goToNextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  }, [slides.length]);
+
+  const goToPrevSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  }, [slides.length]);
+
+  const goToSlide = useCallback((index: number) => {
+    setCurrentSlide(index);
+  }, []);
+
+  const handleSlideClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isFullscreen) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const halfWidth = rect.width / 2;
+    
+    if (x < halfWidth) {
+      goToPrevSlide();
+    } else {
+      goToNextSlide();
+    }
+  }, [isFullscreen, goToPrevSlide, goToNextSlide]);
+
+  // Keyboard navigation in fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        goToPrevSlide();
+      } else if (e.key === 'ArrowRight') {
+        goToNextSlide();
+      } else if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, goToPrevSlide, goToNextSlide]);
 
   if (slides.length === 0) {
     return (
@@ -173,19 +217,286 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
     );
   }
 
-  const goToNextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
-  };
-
-  const goToPrevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index);
-  };
-
   const currentSlideData = slides[currentSlide];
+
+  // Fullscreen Modal
+  if (isFullscreen) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#000000',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {/* Close Button */}
+        <button
+          onClick={() => setIsFullscreen(false)}
+          style={{
+            position: 'absolute',
+            top: '24px',
+            right: '24px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '8px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            color: '#FFFFFF',
+            zIndex: 10001,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.8)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+
+        {/* Slide Counter */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontSize: '16px',
+            color: '#FFFFFF',
+            fontWeight: 600,
+            zIndex: 10001,
+          }}
+        >
+          {currentSlide + 1} / {slides.length}
+        </div>
+
+        {/* Slide Content - Clickable area */}
+        <div
+          onClick={handleSlideClick}
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '80px 40px 120px',
+            cursor: slides.length > 1 ? 'pointer' : 'default',
+          }}
+        >
+          <img
+            src={currentSlideData.image}
+            alt={currentSlideData.title}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '80vh',
+              objectFit: 'contain',
+              display: 'block',
+              userSelect: 'none',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
+
+        {/* Title and Navigation at bottom */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: 'linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%)',
+            padding: '40px 40px 32px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '24px',
+            zIndex: 10000,
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '32px',
+              fontWeight: 600,
+              color: '#FFFFFF',
+              textAlign: 'center',
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.8)',
+            }}
+          >
+            {currentSlideData.title}
+          </h2>
+
+          {/* Navigation Arrows */}
+          {slides.length > 1 && (
+            <div
+              style={{
+                display: 'flex',
+                gap: '16px',
+                alignItems: 'center',
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPrevSlide();
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  width: '56px',
+                  height: '56px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  color: '#FFFFFF',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+
+              {/* Slide dots */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {slides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToSlide(index);
+                    }}
+                    style={{
+                      width: index === currentSlide ? '32px' : '12px',
+                      height: '12px',
+                      borderRadius: '6px',
+                      background: index === currentSlide ? '#6366F1' : 'rgba(255, 255, 255, 0.3)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (index !== currentSlide) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.6)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (index !== currentSlide) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToNextSlide();
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  width: '56px',
+                  height: '56px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  color: '#FFFFFF',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Hint text */}
+          <div
+            style={{
+              fontSize: '14px',
+              color: 'rgba(255, 255, 255, 0.5)',
+              textAlign: 'center',
+            }}
+          >
+            {slides.length > 1 ? 'Click left/right or use arrow keys to navigate • Press ESC to exit' : 'Press ESC to exit'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -194,8 +505,58 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
         borderRadius: '16px',
         padding: '32px',
         border: '1px solid #2A2C33',
+        position: 'relative',
       }}
     >
+      {/* Expand Button */}
+      <button
+        onClick={() => setIsFullscreen(true)}
+        style={{
+          position: 'absolute',
+          top: '40px',
+          right: '40px',
+          background: 'rgba(99, 102, 241, 0.2)',
+          border: '1px solid rgba(99, 102, 241, 0.4)',
+          borderRadius: '8px',
+          padding: '10px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          color: '#FFFFFF',
+          fontSize: '14px',
+          fontWeight: 500,
+          zIndex: 10,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)';
+          e.currentTarget.style.transform = 'scale(1.05)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+          <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+          <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+          <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+        </svg>
+        Fullscreen
+      </button>
+
       {/* Slide Display */}
       <div
         style={{

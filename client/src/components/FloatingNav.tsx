@@ -2,9 +2,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   IconChartInfographic,
   IconLayoutDashboard,
-  IconDashboard,
   IconMap,
-  IconChartBar
+  IconChartBar,
+  IconPresentation
 } from '@tabler/icons-react';
 
 interface NavItem {
@@ -25,9 +25,9 @@ const navItems: NavItem[] = [
     label: 'Dashboard'
   },
   {
-    icon: IconDashboard,
-    path: '/dashboard-v2',
-    label: 'Dashboard V2'
+    icon: IconPresentation,
+    path: '/presentation-builder',
+    label: 'Presentation Builder'
   },
   {
     icon: IconMap,

@@ -111,7 +111,6 @@ export const createDashboardTools = (
   const dataFetcher = new DataFetcher({
     mcpPostgresEndpoint: '/api/data/query',
     graphqlEndpoint: '/graphql',
-    clickhouseEnabled: true,
   });
 
   // Theme helpers
@@ -251,7 +250,7 @@ export const createDashboardTools = (
       dataConfig?: ComponentDataConfig;
       query?: {
         sql: string;
-        handlebarsTemplate?: string;
+        jsCode?: string; // JavaScript function to transform query results
         alasqlTransform?: string;
       };
       style?: any;
@@ -298,8 +297,8 @@ export const createDashboardTools = (
               type: sourceType,
               query: params.query.sql,
             } as ComponentDataConfig['source'],
-            handlebarsTemplate: params.query.handlebarsTemplate ? {
-              template: params.query.handlebarsTemplate,
+            jsTransform: params.query.jsCode ? {
+              code: params.query.jsCode,
             } : undefined,
             alasqlTransform: params.query.alasqlTransform ? {
               query: params.query.alasqlTransform,
@@ -408,13 +407,14 @@ export const createDashboardTools = (
               ? `${stats.availableAreas} grid area(s) still available: ${stats.availableAreaNames.join(', ')}` 
               : 'All grid areas are now occupied',
             fetch: lastTraceResult ? {
-              postgresResponse: lastTraceResult.trace?.raw,
+              queryResponse: lastTraceResult.trace?.raw,
               finalData: lastTraceResult.final,
               transform: {
-                afterHandlebars: lastTraceResult.trace?.afterHandlebars,
+                afterJS: lastTraceResult.trace?.afterJS,
                 afterAlaSQL: lastTraceResult.trace?.afterAlaSQL,
                 afterNormalize: lastTraceResult.final,
               },
+              jsExecutionTime: lastTraceResult.trace?.jsExecutionTime,
               error: lastTraceResult.error,
             } : undefined
           }
@@ -539,13 +539,14 @@ export const createDashboardTools = (
             const traceResult = await dataFetcher.fetchDataWithTrace(params.id, cfg);
             const normalized = updatedComponent.type === 'chart' ? normalizeToEChartsOption(traceResult.final) : traceResult.final;
             fetchInfo = {
-              postgresResponse: traceResult.trace?.raw,
+              queryResponse: traceResult.trace?.raw,
               finalData: normalized,
               transform: {
-                afterHandlebars: traceResult.trace?.afterHandlebars,
+                afterJS: traceResult.trace?.afterJS,
                 afterAlaSQL: traceResult.trace?.afterAlaSQL,
                 afterNormalize: normalized,
               },
+              jsExecutionTime: traceResult.trace?.jsExecutionTime,
               error: traceResult.error,
             };
             setDashboardState(prev => ({
@@ -730,12 +731,13 @@ export const createDashboardTools = (
           message: `Data fetched successfully for component "${params.id}"`,
           data: {
             finalData: normalized,
-            postgresResponse: traceResult.trace?.raw,
+            queryResponse: traceResult.trace?.raw,
             transform: {
-              afterHandlebars: traceResult.trace?.afterHandlebars,
+              afterJS: traceResult.trace?.afterJS,
               afterAlaSQL: traceResult.trace?.afterAlaSQL,
               afterNormalize: normalized,
             },
+            jsExecutionTime: traceResult.trace?.jsExecutionTime,
             error: traceResult.error,
           }
         };

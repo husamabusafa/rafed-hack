@@ -1,4 +1,3 @@
-import Handlebars from 'handlebars';
 import alasql from 'alasql';
 import type {
   ComponentDataConfig,
@@ -7,10 +6,10 @@ import type {
   GraphQLQuery,
   StaticData,
   ClickHouseQuery,
-  HandlebarsTemplate,
   AlaSQLTransform,
 } from '../types/types';
 import { queryClickHouse as queryClickHouseUtil } from './queryClickHouse';
+import { executeJSTransform } from './jsExecutor';
 
 // Data Fetcher Class
 
@@ -18,16 +17,13 @@ export class DataFetcher {
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private mcpPostgresEndpoint?: string;
   private graphqlEndpoint?: string;
-  private clickhouseEnabled: boolean;
 
   constructor(config?: {
     mcpPostgresEndpoint?: string;
     graphqlEndpoint?: string;
-    clickhouseEnabled?: boolean;
   }) {
     this.mcpPostgresEndpoint = config?.mcpPostgresEndpoint;
     this.graphqlEndpoint = config?.graphqlEndpoint;
-    this.clickhouseEnabled = config?.clickhouseEnabled ?? true;
   }
 
   /**
@@ -49,9 +45,13 @@ export class DataFetcher {
       // Fetch from data source
       let rawData = await this.fetchFromSource(config.source);
 
-      // Apply Handlebars template transformation if specified
-      if (config.handlebarsTemplate) {
-        rawData = this.applyHandlebarsTemplate(rawData, config.handlebarsTemplate);
+      // Apply JS transformation if specified
+      if (config.jsTransform) {
+        const jsResult = executeJSTransform(config.jsTransform.code, rawData);
+        if (!jsResult.success) {
+          throw new Error(jsResult.error || 'JS transformation failed');
+        }
+        rawData = jsResult.result;
       }
 
       // Apply alasql transformation if specified
@@ -76,7 +76,7 @@ export class DataFetcher {
     config: ComponentDataConfig
   ): Promise<{
     final: any;
-    trace: { source: string; raw: any; afterHandlebars?: any; afterAlaSQL?: any };
+    trace: { source: string; raw: any; afterJS?: any; afterAlaSQL?: any; jsExecutionTime?: number };
     error?: string | any;
   }> {
     try {
@@ -97,14 +97,32 @@ export class DataFetcher {
 
       const rawForTransform = raw && typeof raw === 'object' && 'data' in raw ? (raw as any).data : raw;
 
-      let afterHandlebars: any = rawForTransform;
-      if (config.handlebarsTemplate) {
-        afterHandlebars = this.applyHandlebarsTemplate(rawForTransform, config.handlebarsTemplate);
+      let afterJS: any = rawForTransform;
+      let jsExecutionTime: number | undefined;
+      if (config.jsTransform) {
+        const jsResult = executeJSTransform(config.jsTransform.code, rawForTransform);
+        if (!jsResult.success) {
+          return {
+            final: undefined,
+            trace: { source: sourceType, raw, afterJS: undefined, jsExecutionTime: jsResult.executionTime },
+            error: jsResult.error || 'JS transformation failed',
+          };
+        }
+        afterJS = jsResult.result;
+        jsExecutionTime = jsResult.executionTime;
       }
 
-      let afterAlaSQL: any = afterHandlebars;
+      let afterAlaSQL: any = afterJS;
       if (config.alasqlTransform) {
-        afterAlaSQL = this.applyAlaSQLTransform(afterHandlebars, config.alasqlTransform);
+        try {
+          afterAlaSQL = this.applyAlaSQLTransform(afterJS, config.alasqlTransform);
+        } catch (error) {
+          return {
+            final: undefined,
+            trace: { source: sourceType, raw, afterJS, jsExecutionTime },
+            error: error instanceof Error ? error.message : 'AlaSQL transformation failed',
+          };
+        }
       }
 
       const final = afterAlaSQL;
@@ -117,7 +135,13 @@ export class DataFetcher {
 
       return {
         final,
-        trace: { source: sourceType, raw, afterHandlebars: config.handlebarsTemplate ? afterHandlebars : undefined, afterAlaSQL: config.alasqlTransform ? afterAlaSQL : undefined },
+        trace: { 
+          source: sourceType, 
+          raw, 
+          afterJS: config.jsTransform ? afterJS : undefined, 
+          afterAlaSQL: config.alasqlTransform ? afterAlaSQL : undefined,
+          jsExecutionTime 
+        },
         error: possibleError,
       };
     } catch (error: any) {
@@ -307,51 +331,6 @@ export class DataFetcher {
     return source.data;
   }
 
-  /**
-   * Apply Handlebars template transformation
-   */
-  private applyHandlebarsTemplate(
-    data: any,
-    templateConfig: HandlebarsTemplate
-  ): any {
-    try {
-      const template = Handlebars.compile(templateConfig.template);
-      
-      // Smart context: flatten single-row results for easier access
-      const isSingleRow = Array.isArray(data) && data.length === 1;
-      const context = {
-        data,
-        // Add direct field access for single-row results
-        ...(isSingleRow ? data[0] : {}),
-        // Add convenience properties
-        first: Array.isArray(data) && data.length > 0 ? data[0] : null,
-        count: Array.isArray(data) ? data.length : 0,
-        isEmpty: !data || (Array.isArray(data) && data.length === 0),
-        ...templateConfig.context,
-      };
-      
-      const result = template(context);
-      
-      // Try to parse as JSON if it looks like JSON
-      if (typeof result === 'string' && (result.startsWith('{') || result.startsWith('['))) {
-        try {
-          return JSON.parse(result);
-        } catch (parseError) {
-          console.warn('Failed to parse template result as JSON:', parseError);
-          return result;
-        }
-      }
-      
-      return result;
-    } catch (error) {
-      const preview = templateConfig.template.length > 100 
-        ? templateConfig.template.substring(0, 100) + '...' 
-        : templateConfig.template;
-      console.error('Handlebars template error:', error);
-      console.error('Template preview:', preview);
-      throw new Error(`Handlebars template failed: ${error}`);
-    }
-  }
 
   /**
    * Apply alasql transformation
@@ -417,235 +396,3 @@ export class DataFetcher {
   }
 }
 
-// Helper Functions for Template Generation
-
-/**
- * Generate a Handlebars template for chart data transformation
- */
-export function createChartDataTemplate(options: {
-  labelField: string;
-  valueFields: string[];
-  datasetLabels?: string[];
-}): string {
-  const { labelField, valueFields, datasetLabels } = options;
-  
-  return `
-{
-  "labels": [{{#each data}}"{{${labelField}}}"{{#unless @last}},{{/unless}}{{/each}}],
-  "datasets": [
-    ${valueFields.map((field, index) => `
-    {
-      "label": "${datasetLabels?.[index] || field}",
-      "data": [{{#each data}}{{${field}}}{{#unless @last}},{{/unless}}{{/each}}]
-    }
-    `).join(',')}
-  ]
-}
-  `.trim();
-}
-
-/**
- * Generate a Handlebars template for table data transformation
- */
-export function createTableDataTemplate(options: {
-  columns: Array<{ key: string; label: string }>;
-}): string {
-  const { columns } = options;
-  
-  return `
-{
-  "columns": ${JSON.stringify(columns)},
-  "rows": [
-    {{#each data}}
-    {
-      ${columns.map(col => `"${col.key}": "{{${col.key}}}"`).join(',\n      ')}
-    }{{#unless @last}},{{/unless}}
-    {{/each}}
-  ]
-}
-  `.trim();
-}
-
-/**
- * Generate a Handlebars template for stat card data
- */
-export function createStatCardTemplate(options: {
-  valueField: string;
-  labelField?: string;
-  trendField?: string;
-}): string {
-  const { valueField, labelField, trendField } = options;
-  
-  return `
-{
-  "value": {{data.0.${valueField}}},
-  "label": "${labelField ? `{{data.0.${labelField}}}` : 'Value'}"
-  ${trendField ? `,
-  "trend": {
-    "value": {{data.0.${trendField}}},
-    "direction": "{{#if (gt data.0.${trendField} 0)}}up{{else}}down{{/if}}"
-  }` : ''}
-}
-  `.trim();
-}
-
-// Register Custom Handlebars Helpers
-
-// Comparison helpers
-Handlebars.registerHelper('gt', function(a: any, b: any) {
-  return a > b;
-});
-
-Handlebars.registerHelper('lt', function(a: any, b: any) {
-  return a < b;
-});
-
-Handlebars.registerHelper('eq', function(a: any, b: any) {
-  return a === b;
-});
-
-Handlebars.registerHelper('ne', function(a: any, b: any) {
-  return a !== b;
-});
-
-Handlebars.registerHelper('gte', function(a: any, b: any) {
-  return a >= b;
-});
-
-Handlebars.registerHelper('lte', function(a: any, b: any) {
-  return a <= b;
-});
-
-// Logical helpers
-Handlebars.registerHelper('and', function(a: any, b: any) {
-  return a && b;
-});
-
-Handlebars.registerHelper('or', function(a: any, b: any) {
-  return a || b;
-});
-
-Handlebars.registerHelper('not', function(a: any) {
-  return !a;
-});
-
-// Math helpers
-Handlebars.registerHelper('add', function(a: number, b: number) {
-  return a + b;
-});
-
-Handlebars.registerHelper('subtract', function(a: number, b: number) {
-  return a - b;
-});
-
-Handlebars.registerHelper('multiply', function(a: number, b: number) {
-  return a * b;
-});
-
-Handlebars.registerHelper('divide', function(a: number, b: number) {
-  return b !== 0 ? a / b : 0;
-});
-
-// Format number helper
-Handlebars.registerHelper('formatNumber', function(value: number, decimals: number = 2) {
-  return value.toFixed(decimals);
-});
-
-// Format percentage helper
-Handlebars.registerHelper('formatPercent', function(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-});
-
-// Format currency helper
-Handlebars.registerHelper('formatCurrency', function(value: number, currency: string = '$') {
-  return `${currency}${value.toLocaleString()}`;
-});
-
-// Date formatting helper
-Handlebars.registerHelper('formatDate', function(date: string | Date, format: string = 'short') {
-  const d = new Date(date);
-  if (format === 'short') {
-    return d.toLocaleDateString();
-  } else if (format === 'long') {
-    return d.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  }
-  return d.toISOString();
-});
-
-// Convenience helpers
-Handlebars.registerHelper('first', function(array: any[]) {
-  return Array.isArray(array) && array.length > 0 ? array[0] : null;
-});
-
-Handlebars.registerHelper('last', function(array: any[]) {
-  return Array.isArray(array) && array.length > 0 ? array[array.length - 1] : null;
-});
-
-Handlebars.registerHelper('row', function(array: any[], index: number) {
-  return Array.isArray(array) && index >= 0 && index < array.length ? array[index] : null;
-});
-
-Handlebars.registerHelper('length', function(array: any[]) {
-  return Array.isArray(array) ? array.length : 0;
-});
-
-// Safe property access helper
-Handlebars.registerHelper('get', function(obj: any, path: string, defaultValue: any = '') {
-  if (!obj || !path) return defaultValue;
-  const keys = path.split('.');
-  let result = obj;
-  for (const key of keys) {
-    if (result == null || !(key in result)) return defaultValue;
-    result = result[key];
-  }
-  return result ?? defaultValue;
-});
-
-// JSON helpers
-Handlebars.registerHelper('json', function(obj: any, pretty: boolean = false) {
-  try {
-    return pretty ? JSON.stringify(obj, null, 2) : JSON.stringify(obj);
-  } catch {
-    return '';
-  }
-});
-
-Handlebars.registerHelper('jsonParse', function(str: string) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
-});
-
-// String helpers
-Handlebars.registerHelper('uppercase', function(str: string) {
-  return str?.toString().toUpperCase() || '';
-});
-
-Handlebars.registerHelper('lowercase', function(str: string) {
-  return str?.toString().toLowerCase() || '';
-});
-
-Handlebars.registerHelper('capitalize', function(str: string) {
-  const s = str?.toString() || '';
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-});
-
-Handlebars.registerHelper('trim', function(str: string) {
-  return str?.toString().trim() || '';
-});
-
-Handlebars.registerHelper('concat', function(...args: any[]) {
-  // Remove the Handlebars options object (last argument)
-  return args.slice(0, -1).join('');
-});
-
-// Default value helper
-Handlebars.registerHelper('default', function(value: any, defaultValue: any) {
-  return value ?? defaultValue;
-});

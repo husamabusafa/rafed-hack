@@ -5,10 +5,10 @@ import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import InfoGraph from './pages/InfoGraph'
 import DashboardPage from './pages/DashboardPage'
-import DashboardV2 from './pages/DashboardV2'
 import DeckGLMap from './pages/DeckGLMap'
 import AnalysePage from './pages/AnalysePage'
 import FloatingNav from './components/FloatingNav'
+import PresentaionBuilder from './pages/PresentaionBuilder'
 
 function App() {
   return (
@@ -19,7 +19,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/infograph" element={<InfoGraph />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/dashboard-v2" element={<DashboardV2 />} />
+              <Route path="/presentation-builder" element={<PresentaionBuilder />} />
               <Route path="/deckgl-map" element={<DeckGLMap />} />
               <Route path="/analyse" element={<AnalysePage />} />
               <Route path="/analytics" element={<Analytics />} />

@@ -1,4 +1,4 @@
-export default function DashboardV2() {
+export default function PresentaionBuilder() {
   return (
     <div style={{
       display: 'flex',
@@ -15,13 +15,13 @@ export default function DashboardV2() {
           marginBottom: '16px',
           letterSpacing: '-0.02em'
         }}>
-          Dashboard V2
+          Presentation Builder
         </h1>
         <p style={{
           fontSize: '18px',
           color: '#888',
         }}>
-          Dashboard V2 content coming soon...
+          Presentation Builder content coming soon...
         </p>
       </div>
     </div>
