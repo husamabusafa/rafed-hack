@@ -3,8 +3,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPresentationTools, EMPTY_PRESENTATION, type PresentationState } from '../tools/presentationTools';
 import { PresentationDisplay } from '../components/PresentationDisplay';
 
-const AGENT_ID = 'cmisy479x0001qglw77xrr8pw';
-const AGENT_BASE_URL = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:3900';
+const AGENT_ID = import.meta.env.VITE_AGENT_ID_PRESENTATION || 'cmisy479x0001qglw77xrr8pw';
+const AGENT_BASE_URL = import.meta.env.VITE_HSAFA_BASE_URL || 'http://localhost:3900';
 
 export default function Home() {
   return (
