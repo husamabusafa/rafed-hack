@@ -1,9 +1,13 @@
 /**
  * ClickHouse Query Utility
- * Queries ClickHouse database via the NestJS backend
+ * Queries ClickHouse database directly via HTTP interface
  */
 
-const API_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:9200';
+const CLICKHOUSE_HOST = import.meta.env.VITE_CLICKHOUSE_HOST || 'localhost';
+const CLICKHOUSE_PORT = import.meta.env.VITE_CLICKHOUSE_PORT || '8155';
+const CLICKHOUSE_DATABASE = import.meta.env.VITE_CLICKHOUSE_DATABASE || 'default';
+const CLICKHOUSE_USER = import.meta.env.VITE_CLICKHOUSE_USER || 'default';
+const CLICKHOUSE_PASSWORD = import.meta.env.VITE_CLICKHOUSE_PASSWORD || '';
 
 export interface ClickHouseQueryResult {
   success: boolean;
@@ -18,7 +22,7 @@ export interface ClickHouseQueryResult {
 }
 
 /**
- * Execute a ClickHouse query
+ * Execute a ClickHouse query directly
  * @param query - SQL query string
  * @param options - Query options (maxRows, timeout)
  * @returns Query result with data, success status, and metadata
@@ -27,35 +31,76 @@ export async function queryClickHouse(
   query: string,
   options?: { maxRows?: number; timeout?: number }
 ): Promise<ClickHouseQueryResult> {
+  const started = Date.now();
+  
   try {
-    const response = await fetch(`${API_URL}/data/query-clickhouse`, {
+    // Apply maxRows limit if specified
+    let finalQuery = query.trim();
+    if (options?.maxRows && options.maxRows > 0) {
+      // Add LIMIT clause if not already present
+      if (!finalQuery.match(/LIMIT\s+\d+/i)) {
+        finalQuery += ` LIMIT ${options.maxRows}`;
+      }
+    }
+
+    const clickhouseUrl = `http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}`;
+    const url = new URL(clickhouseUrl);
+    url.searchParams.set('database', CLICKHOUSE_DATABASE);
+    url.searchParams.set('default_format', 'JSONEachRow');
+    
+    // Add timeout if specified
+    if (options?.timeout) {
+      url.searchParams.set('max_execution_time', String(Math.floor(options.timeout / 1000)));
+    }
+
+    const auth = CLICKHOUSE_USER + (CLICKHOUSE_PASSWORD ? `:${CLICKHOUSE_PASSWORD}` : '');
+    const headers: HeadersInit = {
+      'Content-Type': 'text/plain',
+    };
+    
+    if (CLICKHOUSE_USER) {
+      headers['Authorization'] = `Basic ${btoa(auth)}`;
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        maxRows: options?.maxRows || 0,
-        timeout: options?.timeout || 30000,
-      }),
+      headers,
+      body: finalQuery,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`ClickHouse error (${response.status}): ${errorText}`);
     }
 
-    const result = await response.json();
-    return result;
+    const text = await response.text();
+    const data = text
+      .trim()
+      .split('\n')
+      .filter(line => line.length > 0)
+      .map(line => JSON.parse(line));
+
+    const durationMs = Date.now() - started;
+    console.log(`[queryClickHouse] Query executed in ${durationMs}ms, returned ${data.length} rows`);
+
+    return {
+      success: true,
+      data,
+      rowCount: data.length,
+      meta: {
+        durationMs,
+      },
+    };
   } catch (error: any) {
-    console.error('[queryClickHouse] Error:', error);
+    const durationMs = Date.now() - started;
+    console.error(`[queryClickHouse] Query failed after ${durationMs}ms:`, error);
     return {
       success: false,
       data: [],
       rowCount: 0,
       error: error?.message || String(error),
       meta: {
-        durationMs: 0,
+        durationMs,
       },
     };
   }

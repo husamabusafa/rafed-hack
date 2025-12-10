@@ -1,0 +1,278 @@
+{
+  "version": 8,
+  "name": "Martin Map Style",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet"
+    },
+    "martin_base": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/land_use_polygon,division_area_polygon"
+    },
+    "martin_overlays": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/schools,students,buildings_view"
+    },
+    "martin_iso_1km": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/school_iso_1km_view"
+    },
+    "martin_iso_3km": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/school_iso_3km_view"
+    },
+    "martin_iso_5km": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/school_iso_5km_view"
+    },
+    "martin_routes": {
+      "type": "vector",
+      "url": "https://martine.sa-apps.com/school_routes"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f0f0f0"
+      }
+    },
+    {
+      "id": "land_use_polygon",
+      "type": "fill",
+      "source": "martin_base",
+      "source-layer": "land_use_polygon",
+      "paint": {
+        "fill-color": "#a8dba8",
+        "fill-opacity": 0.6,
+        "fill-outline-color": "#88c288"
+      }
+    },
+    {
+      "id": "division_area_polygon",
+      "type": "line",
+      "source": "martin_base",
+      "source-layer": "division_area_polygon",
+      "paint": {
+        "line-color": "#633ea5",
+        "line-width": 2,
+        "line-dasharray": [2, 3]
+      }
+    },
+    {
+      "id": "transportation_casing",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["all", ["!in", "class", "rail", "ferry"], ["!=", "brunnel", "tunnel"]],
+      "paint": {
+        "line-color": "#a0a0a0",
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          10, ["match", ["get", "class"], "motorway", 2.5, "trunk", 2.5, 1.5],
+          16, ["match", ["get", "class"], "motorway", 9, "trunk", 9, "primary", 9, 6]
+        ]
+      }
+    },
+    {
+      "id": "transportation_inner",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["all", ["!in", "class", "rail", "ferry"], ["!=", "brunnel", "tunnel"]],
+      "paint": {
+        "line-color": [
+          "match", ["get", "class"],
+          "motorway", "#eeb4b4",
+          "trunk", "#fcd6a4",
+          "primary", "#fcd6a4",
+          "secondary", "#ffffff",
+          "tertiary", "#ffffff",
+          "#ffffff"
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          10, ["match", ["get", "class"], "motorway", 1, "trunk", 1, 0.5],
+          16, ["match", ["get", "class"], "motorway", 6, "trunk", 6, "primary", 6, 3.5]
+        ]
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill-extrusion",
+      "source": "martin_overlays",
+      "source-layer": "buildings_view",
+      "minzoom": 16,
+      "paint": {
+        "fill-extrusion-color": "#aaa",
+        "fill-extrusion-height": ["get", "render_height"],
+        "fill-extrusion-base": ["get", "render_min_height"],
+        "fill-extrusion-opacity": 0.6
+      }
+    },
+    {
+      "id": "school_ors_isochrones_5km",
+      "type": "fill",
+      "source": "martin_iso_5km",
+      "source-layer": "school_iso_5km_view",
+      "minzoom": 5,
+      "paint": {
+        "fill-color": "#f43f5e",
+        "fill-opacity": 0.08,
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "school_ors_isochrones_3km",
+      "type": "fill",
+      "source": "martin_iso_3km",
+      "source-layer": "school_iso_3km_view",
+      "minzoom": 5,
+      "paint": {
+        "fill-color": "#f59e0b",
+        "fill-opacity": 0.08,
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "school_ors_isochrones_1km",
+      "type": "fill",
+      "source": "martin_iso_1km",
+      "source-layer": "school_iso_1km_view",
+      "minzoom": 5,
+      "paint": {
+        "fill-color": "#10b981",
+        "fill-opacity": 0.08,
+        "fill-outline-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "school_routes",
+      "type": "line",
+      "source": "martin_routes",
+      "source-layer": "school_routes",
+      "minzoom": 10,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "none"
+      },
+      "paint": {
+        "line-color": "#6366f1",
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 0.5,
+          13, 1,
+          15, 2,
+          18, 3
+        ],
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 0.3,
+          13, 0.5,
+          16, 0.7
+        ]
+      }
+    },
+    {
+      "id": "students",
+      "type": "circle",
+      "source": "martin_overlays",
+      "source-layer": "students",
+      "minzoom": 12,
+      "paint": {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          12, 2,
+          15, 4,
+          18, 6
+        ],
+        "circle-color": [
+          "match", ["get", "gender"],
+          "Female", "#ec4899",
+          "Male", "#3b82f6",
+          "#9ca3af"
+        ],
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#fff",
+        "circle-opacity": 0.85
+      }
+    },
+    {
+      "id": "schools",
+      "type": "circle",
+      "source": "martin_overlays",
+      "source-layer": "schools",
+      "minzoom": 12,
+      "paint": {
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, 3,
+          16, 8
+        ],
+        "circle-color": "#ff6b6b",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#fff"
+      }
+    },
+    {
+      "id": "land_use_polygon_label",
+      "type": "symbol",
+      "source": "martin_base",
+      "source-layer": "land_use_polygon",
+      "layout": {
+        "text-field": "{names_pri}",
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 14
+      },
+      "paint": {
+        "text-color": "#1a441a",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
+      }
+    },
+    {
+      "id": "division_area_polygon_label",
+      "type": "symbol",
+      "source": "martin_base",
+      "source-layer": "division_area_polygon",
+      "layout": {
+        "text-field": "{names_pri}",
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 15,
+        "text-transform": "uppercase"
+      },
+      "paint": {
+        "text-color": "#2d3748",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
+      }
+    },
+    {
+      "id": "schools_label",
+      "type": "symbol",
+      "source": "martin_overlays",
+      "source-layer": "schools",
+      "minzoom": 13,
+      "layout": {
+        "text-field": "{school_nam}",
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 13,
+        "text-offset": [0, 1.4],
+        "text-anchor": "top"
+      },
+      "paint": {
+        "text-color": "#9b2c2c",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2
+      }
+    }
+  ]
+}

@@ -21,11 +21,15 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     platform: linux/amd64
+    environment:
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=
     ports:
       - "8155:8123"
       - "9055:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/custom-users.xml
     ulimits:
       nofile:
         soft: 262144

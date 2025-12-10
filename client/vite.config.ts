@@ -8,4 +8,10 @@ export default defineConfig({
   server: {
     port: 9800,
   },
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  }
 })

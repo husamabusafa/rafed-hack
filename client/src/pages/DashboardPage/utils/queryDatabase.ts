@@ -1,16 +1,17 @@
 /**
- * Execute a PostgreSQL query through the NestJS server
+ * Execute a PostgreSQL query via PostgREST
  * @param query - SQL query string
  * @returns Promise with query results
  */
-const API_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:9200';
+const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL || 'http://localhost:3001';
 
 export async function queryDatabase(query: string) {
   try {
-    const response = await fetch(`${API_URL}/data/query`, {
+    const response = await fetch(`${POSTGREST_URL}/rpc/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify({ query }),
     });
@@ -21,11 +22,11 @@ export async function queryDatabase(query: string) {
 
     const result = await response.json();
     
-    if (!result.success) {
-      throw new Error(result.error || 'Query execution failed');
-    }
-
-    return result;
+    return {
+      success: true,
+      data: Array.isArray(result) ? result : [result],
+      rowCount: Array.isArray(result) ? result.length : 1,
+    };
   } catch (error) {
     console.error('Error executing query:', error);
     throw error;
