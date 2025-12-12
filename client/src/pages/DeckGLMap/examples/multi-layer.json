@@ -1,0 +1,63 @@
+{
+  "title": "Multi-Layer Analytics",
+  "description": "Combined visualization with multiple layers from different queries",
+  "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  "initialViewState": {
+    "longitude": 46.7,
+    "latitude": 24.7,
+    "zoom": 10,
+    "pitch": 40,
+    "bearing": 0
+  },
+  "layers": [
+    {
+      "id": "student-heatmap",
+      "type": "heatmap",
+      "dataSource": {
+        "type": "clickhouse",
+        "query": "SELECT toFloat64(lat) as lat, toFloat64(lon) as lon FROM students WHERE lat IS NOT NULL AND lon IS NOT NULL LIMIT 30000",
+        "maxRows": 30000
+      },
+      "mapping": {
+        "position": ["lon", "lat"]
+      },
+      "style": {
+        "radius": 30,
+        "opacity": 0.8,
+        "colorRange": [
+          [255, 255, 178],
+          [254, 204, 92],
+          [253, 141, 60],
+          [240, 59, 32],
+          [189, 0, 38]
+        ]
+      },
+      "tooltip": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "schools-scatter",
+      "type": "scatterplot",
+      "dataSource": {
+        "type": "clickhouse",
+        "query": "SELECT toFloat64(latitude) as lat, toFloat64(longitude) as lon, name, type FROM schools WHERE latitude IS NOT NULL AND longitude IS NOT NULL",
+        "maxRows": 5000
+      },
+      "mapping": {
+        "position": ["lon", "lat"]
+      },
+      "style": {
+        "radius": 100,
+        "radiusMinPixels": 5,
+        "radiusMaxPixels": 20,
+        "color": [34, 197, 94, 220],
+        "pickable": true
+      },
+      "tooltip": {
+        "enabled": true,
+        "fields": ["name", "type"]
+      }
+    }
+  ]
+}

@@ -1,5 +1,14 @@
 export function normalizeToEChartsOption(data: any): any {
   if (!data) return data;
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (trimmed === '') return undefined;
+    try {
+      return normalizeToEChartsOption(JSON.parse(trimmed));
+    } catch {
+      return data;
+    }
+  }
   if (typeof data === 'object' && (data.series || data.xAxis || data.yAxis || (data.dataset && data.dataset.source))) {
     return data;
   }

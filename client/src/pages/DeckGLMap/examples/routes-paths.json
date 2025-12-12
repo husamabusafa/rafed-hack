@@ -1,0 +1,37 @@
+{
+  "title": "Bus Routes Visualization",
+  "description": "Path layer showing bus routes from ClickHouse",
+  "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  "initialViewState": {
+    "longitude": 46.7,
+    "latitude": 24.7,
+    "zoom": 11,
+    "pitch": 45,
+    "bearing": 0
+  },
+  "layers": [
+    {
+      "id": "bus-routes",
+      "type": "path",
+      "dataSource": {
+        "type": "clickhouse",
+        "query": "SELECT route_id, route_name, path FROM routes WHERE path IS NOT NULL LIMIT 1000",
+        "maxRows": 1000
+      },
+      "mapping": {
+        "path": "path"
+      },
+      "style": {
+        "widthScale": 5,
+        "widthMinPixels": 2,
+        "widthMaxPixels": 10,
+        "color": [249, 115, 22, 200],
+        "pickable": true
+      },
+      "tooltip": {
+        "enabled": true,
+        "fields": ["route_id", "route_name"]
+      }
+    }
+  ]
+}

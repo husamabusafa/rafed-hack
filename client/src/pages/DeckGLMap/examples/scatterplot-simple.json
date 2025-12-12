@@ -1,0 +1,37 @@
+{
+  "title": "Student Locations",
+  "description": "Scatterplot showing student locations with bus eligibility",
+  "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  "initialViewState": {
+    "longitude": 46.7,
+    "latitude": 24.7,
+    "zoom": 11,
+    "pitch": 0,
+    "bearing": 0
+  },
+  "layers": [
+    {
+      "id": "students-scatter",
+      "type": "scatterplot",
+      "dataSource": {
+        "type": "clickhouse",
+        "query": "SELECT toFloat64(lat) as lat, toFloat64(lon) as lon, student_name, bus_elig FROM students WHERE lat IS NOT NULL AND lon IS NOT NULL LIMIT 10000",
+        "maxRows": 10000
+      },
+      "mapping": {
+        "position": ["lon", "lat"]
+      },
+      "style": {
+        "radius": 50,
+        "radiusMinPixels": 2,
+        "radiusMaxPixels": 10,
+        "color": [249, 115, 22, 180],
+        "pickable": true
+      },
+      "tooltip": {
+        "enabled": true,
+        "fields": ["student_name", "bus_elig"]
+      }
+    }
+  ]
+}

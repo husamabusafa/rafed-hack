@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { Icon } from '@iconify/react';
 import type { DashboardComponent, TableData, StatCardData } from '../types/types';
+
+const safeParseJSON = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+};
 
 const formatCompactNumber = (value: number | string): string => {
   const num = typeof value === 'string' ? Number(value) : value;
@@ -29,6 +40,19 @@ interface ComponentRendererProps {
 }
 
 export const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
+  const chartRef = useRef<ReactECharts>(null);
+  
+  // Force chart resize when component mounts or data changes
+  useEffect(() => {
+    if (component.type === 'chart' && chartRef.current) {
+      const echartsInstance = chartRef.current.getEchartsInstance();
+      // Small delay to ensure container has rendered with proper dimensions
+      setTimeout(() => {
+        echartsInstance.resize();
+      }, 100);
+    }
+  }, [component.type, component.data, component.id]);
+
   if (!component || !component.id) {
     return (
       <div style={{
@@ -49,9 +73,13 @@ export const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component 
       case 'chart':
         return component.data ? (
           <ReactECharts
-            option={component.data}
+            ref={chartRef}
+            key={component.id}
+            option={safeParseJSON(component.data)}
             style={{ height: '100%', width: '100%', minHeight: '250px' }}
-            opts={{ renderer: 'canvas' }}
+            opts={{ renderer: 'canvas', locale: 'EN' }}
+            notMerge={true}
+            lazyUpdate={true}
           />
         ) : (
           <div style={{ color: '#666', textAlign: 'center', padding: '20px' }}>

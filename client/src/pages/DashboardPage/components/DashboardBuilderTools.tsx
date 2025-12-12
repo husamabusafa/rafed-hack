@@ -17,6 +17,34 @@ import {
   extractGridAreas
 } from '../utils/gridUtils';
 
+const safeParseJSON = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+};
+
+const makeCloneSafe = (value: unknown, seen = new WeakSet<object>()): unknown => {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'function') return '[Function]';
+  if (typeof value !== 'object') return value;
+
+  if (seen.has(value as object)) return '[Circular]';
+  seen.add(value as object);
+
+  if (Array.isArray(value)) return value.map(v => makeCloneSafe(v, seen));
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = makeCloneSafe(v, seen);
+  }
+  return out;
+};
+
 // Helper: Parse JSONPath and navigate to value
 
 const navigateToPath = (obj: any, path: string): { 
@@ -152,6 +180,18 @@ export const createDashboardTools = (
     };
   };
 
+  const toStoredChartOption = (option: any) => {
+    const parsed = safeParseJSON(option);
+    const normalized = normalizeToEChartsOption(parsed);
+    const themed = applyChartTheme(normalized);
+    return themed;
+  };
+
+  const toolOk = (resp: ToolResponse): ToolResponse => ({
+    ...resp,
+    data: makeCloneSafe(resp.data),
+  });
+
   return {
     // ========================================================================
     // Dashboard State Management
@@ -159,11 +199,11 @@ export const createDashboardTools = (
 
     get_dashboard: async (): Promise<ToolResponse> => {
       const currentState = getDashboardState();
-      return {
+      return toolOk({
         success: true,
         message: 'Dashboard state retrieved successfully',
         data: currentState
-      };
+      });
     },
 
     set_grid_layout: async (params: {
@@ -219,7 +259,7 @@ export const createDashboardTools = (
           }
         }));
 
-        return {
+        return toolOk({
           success: true,
           message: 'Grid layout configured successfully',
           data: {
@@ -227,7 +267,7 @@ export const createDashboardTools = (
             gridAreas: newAreas,
             stats: getGridStats({ ...currentState, grid: normalizedParams })
           }
-        };
+        });
       } catch (error) {
         return {
           success: false,
@@ -325,7 +365,7 @@ export const createDashboardTools = (
             ...d,
           };
         } else if (params.type === 'chart' && params.data && !params.query) {
-          themedData = applyChartTheme(params.data);
+          themedData = toStoredChartOption(params.data);
         }
 
         // Create component with initial data
@@ -357,8 +397,7 @@ export const createDashboardTools = (
         if (params.query && finalDataConfig) {
           try {
             const traceResult = await dataFetcher.fetchDataWithTrace(params.id, finalDataConfig);
-            const normalized = params.type === 'chart' ? normalizeToEChartsOption(traceResult.final) : traceResult.final;
-            const themed = params.type === 'chart' ? applyChartTheme(normalized) : normalized;
+            const themed = params.type === 'chart' ? toStoredChartOption(traceResult.final) : traceResult.final;
             lastTraceResult = { ...traceResult, final: themed } as any;
             setDashboardState(prev => ({
               ...prev,
@@ -397,7 +436,7 @@ export const createDashboardTools = (
 
         const stats = getGridStats(getDashboardState());
         
-        return {
+        return toolOk({
           success: true,
           message: `Component "${params.id}" created successfully in grid area "${params.gridArea}"${params.query ? ' (data fetch attempted)' : ''}`,
           data: {
@@ -418,7 +457,7 @@ export const createDashboardTools = (
               error: lastTraceResult.error,
             } : undefined
           }
-        };
+        });
       } catch (error) {
         return {
           success: false,
@@ -644,16 +683,15 @@ export const createDashboardTools = (
         if (!component) {
           return {
             success: false,
-            error: `Component "${params.id}" not found`,
-            data: null
+            error: `Component "${params.id}" not found`
           };
         }
 
-        return {
+        return toolOk({
           success: true,
           message: `Component "${params.id}" retrieved successfully`,
-          data: component
-        };
+          data: { component }
+        });
       } catch (error) {
         return {
           success: false,
@@ -706,7 +744,7 @@ export const createDashboardTools = (
         // Fetch data with trace
         const cfgFetch: ComponentDataConfig = component.dataConfig as ComponentDataConfig;
         const traceResult = await dataFetcher.fetchDataWithTrace(params.id, cfgFetch);
-        const normalized = component.type === 'chart' ? normalizeToEChartsOption(traceResult.final) : traceResult.final;
+        const normalized = component.type === 'chart' ? toStoredChartOption(traceResult.final) : traceResult.final;
 
         // Update component with fetched final data
         setDashboardState(prev => ({
@@ -726,7 +764,7 @@ export const createDashboardTools = (
           }
         }));
 
-        return {
+        return toolOk({
           success: true,
           message: `Data fetched successfully for component "${params.id}"`,
           data: {
@@ -740,7 +778,7 @@ export const createDashboardTools = (
             jsExecutionTime: traceResult.trace?.jsExecutionTime,
             error: traceResult.error,
           }
-        };
+        });
       } catch (error) {
         // Update status to error
         setDashboardState(prev => ({
@@ -778,29 +816,41 @@ export const createDashboardTools = (
               return { id, skipped: true, reason: 'no dataConfig' } as const;
             }
             const trace = await dataFetcher.fetchDataWithTrace(id, cfg);
-            const final = c.type === 'chart' ? normalizeToEChartsOption(trace.final) : trace.final;
+            const final = c.type === 'chart' ? toStoredChartOption(trace.final) : trace.final;
             return { id, skipped: false, trace, final } as const;
           })
         );
 
+        let successCount = 0;
+        let errorCount = 0;
+        let skippedCount = 0;
+        results.forEach((res) => {
+          if (res.status === 'fulfilled') {
+            const val = res.value as any;
+            if (val?.skipped) {
+              skippedCount += 1;
+            } else if (val?.trace?.error) {
+              errorCount += 1;
+            } else {
+              successCount += 1;
+            }
+          } else {
+            errorCount += 1;
+          }
+        });
+
         // Update all components with fetched data
         setDashboardState(prev => {
           const updatedComponents = { ...prev.components };
-          let successCount = 0;
-          let errorCount = 0;
-          let skippedCount = 0;
           results.forEach((res, index) => {
             const id = componentIds[index];
             if (res.status === 'fulfilled') {
               const val = res.value as any;
               if (val?.skipped) {
-                skippedCount += 1;
                 return;
               }
               const trace = val.trace;
               const final = val.final;
-              successCount += trace?.error ? 0 : 1;
-              errorCount += trace?.error ? 1 : 0;
               updatedComponents[id] = {
                 ...updatedComponents[id],
                 data: final,
@@ -812,7 +862,6 @@ export const createDashboardTools = (
                 }
               };
             } else {
-              errorCount += 1;
               updatedComponents[id] = {
                 ...updatedComponents[id],
                 metadata: {
@@ -830,11 +879,11 @@ export const createDashboardTools = (
           };
         });
 
-        return {
+        return toolOk({
           success: true,
           message: `Refreshed ${componentIds.length} components`,
-          data: { total: componentIds.length }
-        };
+          data: { total: componentIds.length, successCount, errorCount, skippedCount }
+        });
       } catch (error) {
         return {
           success: false,

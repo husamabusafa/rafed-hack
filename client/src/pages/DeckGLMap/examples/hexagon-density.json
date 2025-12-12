@@ -1,0 +1,45 @@
+{
+  "title": "Student Density Heatmap",
+  "description": "3D Hexagon visualization of student distribution from ClickHouse",
+  "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  "initialViewState": {
+    "longitude": 46.7,
+    "latitude": 24.7,
+    "zoom": 10,
+    "pitch": 50,
+    "bearing": -20
+  },
+  "layers": [
+    {
+      "id": "student-hexagons",
+      "type": "hexagon",
+      "dataSource": {
+        "type": "clickhouse",
+        "query": "SELECT toFloat64(lat) as lat, toFloat64(lon) as lon, student_name FROM students WHERE lat IS NOT NULL AND lon IS NOT NULL LIMIT 50000",
+        "maxRows": 50000
+      },
+      "mapping": {
+        "position": ["lon", "lat"]
+      },
+      "style": {
+        "radius": 500,
+        "elevationScale": 100,
+        "elevationRange": [0, 3000],
+        "extruded": true,
+        "coverage": 0.9,
+        "pickable": true,
+        "colorRange": [
+          [254, 240, 217],
+          [253, 204, 138],
+          [252, 141, 89],
+          [227, 74, 51],
+          [179, 0, 0]
+        ]
+      },
+      "tooltip": {
+        "enabled": true,
+        "template": "<div><strong>Student Count:</strong> {colorValue}</div>"
+      }
+    }
+  ]
+}

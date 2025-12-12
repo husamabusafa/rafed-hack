@@ -9,6 +9,7 @@ import DeckGLMap from './pages/DeckGLMap'
 import AnalysePage from './pages/AnalysePage'
 import FloatingNav from './components/FloatingNav'
 import PresentaionBuilder from './pages/PresentaionBuilder'
+import TestPage from './pages/DeckGLMap/TestPage'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <Route path="/analyse" element={<AnalysePage />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/test-page" element={<TestPage />} />
             </Routes>
           </ContentContainer>
           <FloatingNav />
