@@ -27,7 +27,7 @@ const EMPTY_DASHBOARD: DashboardState = {
 const AGENT_ID = import.meta.env.VITE_AGENT_ID_DASHBOARD || 'cmiqj4p0w0004qgg4g71gza8w';
 const AGENT_BASE_URL = import.meta.env.VITE_HSAFA_BASE_URL || 'http://localhost:3900';
 
-export default function DashboardBuilder() {
+export default function DashboardPage() {
   return (
     <HsafaProvider baseUrl={AGENT_BASE_URL}>
       <ContentContainer>
@@ -40,11 +40,13 @@ export default function DashboardBuilder() {
 function DashboardContent() {
   const [dashboardState, setDashboardState] = useState<DashboardState>(EMPTY_DASHBOARD);
   const dashboardStateRef = useRef(dashboardState);
-  const { currentChatId, isAnyChatOpen } = useHsafa();
+  const { currentChatId } = useHsafa();
+    console.log('[Dashboard] currentChatId', currentChatId);
   const readStoredChatId = useCallback(() => {
     try { return localStorage.getItem(`hsafaChat_${AGENT_ID}.currentChatId`); } catch { return null; }
   }, []);
   const resolveActiveChatId = useCallback(() => (currentChatId || readStoredChatId() || undefined) as string | undefined, [currentChatId, readStoredChatId]);
+  const activeChatId = useMemo(() => resolveActiveChatId(), [resolveActiveChatId]);
 
   useEffect(() => {
     dashboardStateRef.current = dashboardState;
@@ -118,11 +120,11 @@ function DashboardContent() {
       }
     })();
     return () => { cancelled = true; };
-  }, [currentChatId, isAnyChatOpen, resolveActiveChatId]);
+  }, [resolveActiveChatId]);
 
   const dashboardTools = useMemo(
-    () => createDashboardTools(() => dashboardStateRef.current, setDashboardState),
-    [setDashboardState]
+    () => createDashboardTools(() => dashboardState, setDashboardState),
+    [dashboardState, setDashboardState]
   );
 
   const gridAreas = useMemo(() => {
@@ -144,7 +146,7 @@ function DashboardContent() {
   const autosaveTimerRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const id = resolveActiveChatId();
-    if (!id || !isAnyChatOpen) return;
+    if (!id) return;
     if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
     console.log('[Dashboard] Autosave scheduled for chat', id);
     autosaveTimerRef.current = window.setTimeout(async () => {
@@ -160,7 +162,7 @@ function DashboardContent() {
     return () => {
       if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
     };
-  }, [dashboardState, currentChatId, isAnyChatOpen, resolveActiveChatId]);
+  }, [dashboardState, currentChatId, resolveActiveChatId]);
 
   return (
     <>
@@ -169,7 +171,7 @@ function DashboardContent() {
         padding: '24px',
         overflow: 'auto'
       }}>
-        {!isAnyChatOpen ? (
+        {!activeChatId ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
