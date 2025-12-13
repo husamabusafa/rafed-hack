@@ -9,6 +9,7 @@ import type { DashboardState } from './types/types';
 import { ComponentRenderer } from './components/ComponentRenderer';
 import { EmptyGridArea } from './components/EmptyGridArea';
 import { saveDashboardVersion, loadLatestDashboard } from './utils/opfs';
+import { HsafaUI } from './components/HsafaUIMapping';
 
 const EMPTY_DASHBOARD: DashboardState = {
   grid: {
@@ -327,7 +328,7 @@ function DashboardContent() {
         alwaysOpen={true}
         expandable={false}
         HsafaTools={dashboardTools}
-        HsafaUI={{}}
+        HsafaUI={HsafaUI}
         presetPrompts={[
     {
       label: "👥 Student Analytics",
