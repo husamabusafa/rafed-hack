@@ -1,17 +1,23 @@
 import React from 'react';
 import { Icon } from '@iconify/react';
+import type { ComponentUnderLoading } from '../types/types';
 
 interface EmptyGridAreaProps {
   gridArea: string;
+  loading?: ComponentUnderLoading;
 }
 
-export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea }) => {
+export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea, loading }) => {
+  const isLoading = !!loading;
+
   return (
     <div
       style={{
         gridArea: gridArea,
         position: 'relative',
-        background: 'linear-gradient(135deg, #1a1b1e 0%, #17181c 100%)',
+        background: isLoading
+          ? 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(23,24,28,1) 100%)'
+          : 'linear-gradient(135deg, #1a1b1e 0%, #17181c 100%)',
         border: '2px dashed #2A2C33',
         borderRadius: '12px',
         padding: '20px',
@@ -35,7 +41,10 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea }) => {
         boxShadow: '0 8px 32px rgba(99, 102, 241, 0.15)',
         marginBottom: '14px'
       }}>
-        <Icon icon="lucide:square-plus" style={{ fontSize: '28px', color: '#6366F1' }} />
+        <Icon
+          icon={isLoading ? 'lucide:loader-2' : 'lucide:square-plus'}
+          style={{ fontSize: '28px', color: '#6366F1' }}
+        />
       </div>
 
       {/* Text */}
@@ -50,7 +59,7 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea }) => {
           color: '#FFFFFF',
           letterSpacing: '-0.01em'
         }}>
-          Empty Grid Area
+          {isLoading ? 'Creating Component...' : 'Empty Grid Area'}
         </div>
         <div style={{
           fontSize: '12px',
@@ -71,7 +80,9 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea }) => {
           color: '#888',
           marginTop: '10px'
         }}>
-          Ask the AI to add a component here
+          {isLoading
+            ? `Tool #${loading?.toolCallNumber} • ${loading?.type} • ${loading?.id}`
+            : 'Ask the AI to add a component here'}
         </div>
       </div>
 

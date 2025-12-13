@@ -280,26 +280,70 @@ export const createDashboardTools = (
     // Component Management
     // ========================================================================
 
-    create_component: async (params: {
-      id: string;
-      type: ComponentType;
-      gridArea: string;
-      title?: string;
-      description?: string;
-      data: any; // Component data - ECharts options for chart, TableData for table, StatCardData for stat-card
-      dataConfig?: ComponentDataConfig;
-      query?: {
-        sql: string;
-        jsCode?: string; // JavaScript function to transform query results
-        alasqlTransform?: string;
-      };
-      style?: any;
-    }): Promise<ToolResponse> => {
-      try {
-        const currentState = getDashboardState();
+    create_component: {
+      executeEachToken: true,
+      tool: async (params: {
+        id: string;
+        type: ComponentType;
+        gridArea: string;
+        title?: string;
+        description?: string;
+        data: any; // Component data - ECharts options for chart, TableData for table, StatCardData for stat-card
+        dataConfig?: ComponentDataConfig;
+        query?: {
+          sql: string;
+          jsCode?: string; // JavaScript function to transform query results
+          alasqlTransform?: string;
+        };
+        style?: any;
+        toolCallNumber?: number;
+      }): Promise<ToolResponse> => {
+        const clearLoadingForArea = () => {
+          setDashboardState(prev => ({
+            ...prev,
+            componentsUnderLoading: (prev.componentsUnderLoading || []).filter(
+              e => e.gridArea !== params.gridArea && e.id !== params.id
+            ),
+          }));
+        };
+
+        try {
+          // Streaming mode: executeEachToken will call this multiple times.
+          // We only upsert into componentsUnderLoading until the final call (toolCallNumber === undefined).
+          const toolCallNumber = params.toolCallNumber;
+          if (typeof toolCallNumber === 'number') {
+            setDashboardState(prev => {
+              const existing = prev.componentsUnderLoading || [];
+              const next = existing.filter(e => e.toolCallNumber !== toolCallNumber);
+              next.push({
+                toolCallNumber,
+                id: params.id,
+                type: params.type,
+                gridArea: params.gridArea,
+              });
+              return {
+                ...prev,
+                componentsUnderLoading: next,
+              };
+            });
+
+            return toolOk({
+              success: true,
+              message: `Component "${params.id}" is being created (streaming)`,
+              data: {
+                toolCallNumber,
+                id: params.id,
+                type: params.type,
+                gridArea: params.gridArea,
+              },
+            });
+          }
+
+          const currentState = getDashboardState();
         
         // Check if component ID already exists
         if (currentState.components[params.id]) {
+          clearLoadingForArea();
           return {
             success: false,
             error: `Component with ID "${params.id}" already exists. Use update_component to modify it.`
@@ -309,6 +353,7 @@ export const createDashboardTools = (
         // Validate grid area exists
         if (!isValidGridArea(params.gridArea, currentState.grid.templateAreas)) {
           const availableAreas = extractGridAreas(currentState.grid.templateAreas);
+          clearLoadingForArea();
           return {
             success: false,
             error: `Grid area "${params.gridArea}" not found in template areas. Available areas: ${availableAreas.join(', ')}`
@@ -320,6 +365,7 @@ export const createDashboardTools = (
           const existingComponent = Object.values(currentState.components).find(
             c => c.gridArea === params.gridArea
           );
+          clearLoadingForArea();
           return {
             success: false,
             error: `Grid area "${params.gridArea}" is already occupied by component "${existingComponent?.id}". ` +
@@ -389,7 +435,10 @@ export const createDashboardTools = (
           components: {
             ...prev.components,
             [params.id]: newComponent
-          }
+          },
+          componentsUnderLoading: (prev.componentsUnderLoading || []).filter(
+            e => e.gridArea !== params.gridArea && e.id !== params.id
+          ),
         }));
 
         // Auto-fetch data if query was provided, with trace
@@ -436,34 +485,36 @@ export const createDashboardTools = (
 
         const stats = getGridStats(getDashboardState());
         
-        return toolOk({
-          success: true,
-          message: `Component "${params.id}" created successfully in grid area "${params.gridArea}"${params.query ? ' (data fetch attempted)' : ''}`,
-          data: {
-            component: getDashboardState().components[params.id],
-            gridStats: stats,
-            suggestion: stats.availableAreas > 0 
-              ? `${stats.availableAreas} grid area(s) still available: ${stats.availableAreaNames.join(', ')}` 
-              : 'All grid areas are now occupied',
-            fetch: lastTraceResult ? {
-              queryResponse: lastTraceResult.trace?.raw,
-              finalData: lastTraceResult.final,
-              transform: {
-                afterJS: lastTraceResult.trace?.afterJS,
-                afterAlaSQL: lastTraceResult.trace?.afterAlaSQL,
-                afterNormalize: lastTraceResult.final,
-              },
-              jsExecutionTime: lastTraceResult.trace?.jsExecutionTime,
-              error: lastTraceResult.error,
-            } : undefined
-          }
-        });
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to create component'
-        };
-      }
+          return toolOk({
+            success: true,
+            message: `Component "${params.id}" created successfully in grid area "${params.gridArea}"${params.query ? ' (data fetch attempted)' : ''}`,
+            data: {
+              component: getDashboardState().components[params.id],
+              gridStats: stats,
+              suggestion: stats.availableAreas > 0 
+                ? `${stats.availableAreas} grid area(s) still available: ${stats.availableAreaNames.join(', ')}` 
+                : 'All grid areas are now occupied',
+              fetch: lastTraceResult ? {
+                queryResponse: lastTraceResult.trace?.raw,
+                finalData: lastTraceResult.final,
+                transform: {
+                  afterJS: lastTraceResult.trace?.afterJS,
+                  afterAlaSQL: lastTraceResult.trace?.afterAlaSQL,
+                  afterNormalize: lastTraceResult.final,
+                },
+                jsExecutionTime: lastTraceResult.trace?.jsExecutionTime,
+                error: lastTraceResult.error,
+              } : undefined
+            }
+          });
+        } catch (error) {
+          clearLoadingForArea();
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to create component'
+          };
+        }
+      },
     },
 
     update_component: async (params: {

@@ -204,6 +204,13 @@ export interface DashboardComponent {
   };
 }
 
+export interface ComponentUnderLoading {
+  toolCallNumber: number;
+  id: string;
+  type: ComponentType;
+  gridArea: string;
+}
+
 export interface PostgreSQLTable {
   schema: string;
   name: string;
@@ -235,6 +242,7 @@ export interface DashboardState {
     templateAreas: string[];
   };
   components: Record<string, DashboardComponent>;
+  componentsUnderLoading?: ComponentUnderLoading[];
   postgresSchema?: PostgreSQLSchema; // Schema from MCP
   graphqlEndpoint?: string;
   metadata?: {

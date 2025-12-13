@@ -2,6 +2,7 @@ import { HsafaChat, ContentContainer } from '@hsafa/ui-sdk';
 import { HsafaProvider } from '@hsafa/ui-sdk';
 import { useHsafa } from '@hsafa/ui-sdk';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { Icon } from '@iconify/react';
 import { createDashboardTools } from './components/DashboardBuilderTools';
 import type { DashboardState } from './types/types';
@@ -17,12 +18,15 @@ const EMPTY_DASHBOARD: DashboardState = {
     templateAreas: []
   },
   components: {},
+  componentsUnderLoading: [],
   metadata: {
     name: 'New Dashboard',
     description: 'Ask AI to create your dashboard',
     createdAt: new Date().toISOString(),
   }
 };
+
+let latestDashboardState: DashboardState = EMPTY_DASHBOARD;
 
 const AGENT_ID = import.meta.env.VITE_AGENT_ID_DASHBOARD || 'cmiqj4p0w0004qgg4g71gza8w';
 const AGENT_BASE_URL = import.meta.env.VITE_HSAFA_BASE_URL || 'http://localhost:3900';
@@ -39,7 +43,6 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const [dashboardState, setDashboardState] = useState<DashboardState>(EMPTY_DASHBOARD);
-  const dashboardStateRef = useRef(dashboardState);
   const { currentChatId } = useHsafa();
     console.log('[Dashboard] currentChatId', currentChatId);
   const readStoredChatId = useCallback(() => {
@@ -49,8 +52,19 @@ function DashboardContent() {
   const activeChatId = useMemo(() => resolveActiveChatId(), [resolveActiveChatId]);
 
   useEffect(() => {
-    dashboardStateRef.current = dashboardState;
+    latestDashboardState = dashboardState;
   }, [dashboardState]);
+
+  const setDashboardStateWithRef: Dispatch<SetStateAction<DashboardState>> = useCallback(
+    (updater) => {
+      setDashboardState((prev) => {
+        const next = typeof updater === 'function' ? (updater as (p: DashboardState) => DashboardState)(prev) : updater;
+        latestDashboardState = next;
+        return next;
+      });
+    },
+    [setDashboardState]
+  );
 
   // Track messages to detect edits
   // const prevMessagesRef = useRef<any[]>([]);
@@ -113,18 +127,18 @@ function DashboardContent() {
         console.log('[Dashboard] Loading latest dashboard for chat', id);
         const latest = await loadLatestDashboard(String(id));
         if (cancelled) return;
-        setDashboardState(latest || EMPTY_DASHBOARD);
+        setDashboardStateWithRef(latest || EMPTY_DASHBOARD);
         console.log('[Dashboard] Loaded latest dashboard result', { chatId: id, hasLatest: !!latest, areas: latest ? (latest.grid?.templateAreas || []).length : 0, components: latest ? Object.keys(latest.components || {}).length : 0 });
       } catch (e) {
         console.error('[Dashboard] LoadLatest error', e);
       }
     })();
     return () => { cancelled = true; };
-  }, [resolveActiveChatId]);
+  }, [resolveActiveChatId, setDashboardStateWithRef]);
 
   const dashboardTools = useMemo(
-    () => createDashboardTools(() => dashboardState, setDashboardState),
-    [dashboardState, setDashboardState]
+    () => createDashboardTools(() => latestDashboardState, setDashboardStateWithRef),
+    [setDashboardStateWithRef]
   );
 
   const gridAreas = useMemo(() => {
@@ -138,9 +152,10 @@ function DashboardContent() {
   const gridAreasWithComponents = useMemo(() => {
     return gridAreas.map(area => ({
       area,
-      component: Object.values(dashboardState.components).find(c => c.gridArea === area)
+      component: Object.values(dashboardState.components).find(c => c.gridArea === area),
+      loading: (dashboardState.componentsUnderLoading || []).slice().reverse().find(l => l.gridArea === area)
     }));
-  }, [gridAreas, dashboardState.components]);
+  }, [gridAreas, dashboardState.components, dashboardState.componentsUnderLoading]);
 
   // Debounced autosave of the latest dashboard for the active chat
   const autosaveTimerRef = useRef<number | undefined>(undefined);
@@ -151,9 +166,9 @@ function DashboardContent() {
     console.log('[Dashboard] Autosave scheduled for chat', id);
     autosaveTimerRef.current = window.setTimeout(async () => {
       try {
-        const summary = { areas: (dashboardStateRef.current.grid?.templateAreas || []).length, components: Object.keys(dashboardStateRef.current.components || {}).length };
+        const summary = { areas: (latestDashboardState.grid?.templateAreas || []).length, components: Object.keys(latestDashboardState.components || {}).length };
         console.log('[Dashboard] Autosave firing', { chatId: id, messageId: '__latest', summary });
-        await saveDashboardVersion(String(id), '__latest', dashboardStateRef.current);
+        await saveDashboardVersion(String(id), '__latest', latestDashboardState);
         console.log('[Dashboard] Autosave done', { chatId: id });
       } catch (e) {
         console.error('[Dashboard] AutoSave error', e);
@@ -284,7 +299,7 @@ function DashboardContent() {
               width: '100%'
             }}
           >
-            {gridAreasWithComponents.map(({ area, component }) => (
+            {gridAreasWithComponents.map(({ area, component, loading }) => (
               component ? (
                 <ComponentRenderer
                   key={component.id}
@@ -294,6 +309,7 @@ function DashboardContent() {
                 <EmptyGridArea
                   key={area}
                   gridArea={area}
+                  loading={loading}
                 />
               )
             ))}
