@@ -9,43 +9,60 @@ interface EmptyGridAreaProps {
 
 export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea, loading }) => {
   const isLoading = !!loading;
+  const skeletonStyle: React.CSSProperties = {
+    backgroundImage: 'linear-gradient(90deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 100%)',
+    backgroundSize: '200% 100%',
+    animation: 'emptyGridSkeletonShimmer 1.3s ease-in-out infinite',
+  };
 
   return (
-    <div
-      style={{
-        gridArea: gridArea,
-        position: 'relative',
-        background: isLoading
-          ? 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(23,24,28,1) 100%)'
-          : 'linear-gradient(135deg, #1a1b1e 0%, #17181c 100%)',
-        border: '2px dashed #2A2C33',
-        borderRadius: '12px',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '150px',
-        transition: 'all 0.2s ease',
-      }}
-    >
+    <>
+      <style>
+        {`@keyframes emptyGridSkeletonShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}
+      </style>
+      <div
+        style={{
+          gridArea: gridArea,
+          position: 'relative',
+          background: isLoading
+            ? 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(23,24,28,1) 100%)'
+            : 'linear-gradient(135deg, #1a1b1e 0%, #17181c 100%)',
+          border: '2px dashed #2A2C33',
+          borderRadius: '12px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '150px',
+          transition: 'all 0.2s ease',
+        }}
+      >
       {/* Icon */}
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '60px',
-        height: '60px',
-        borderRadius: '14px',
-        background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15))',
-        boxShadow: '0 8px 32px rgba(99, 102, 241, 0.15)',
-        marginBottom: '14px'
-      }}>
-        <Icon
-          icon={isLoading ? 'lucide:loader-2' : 'lucide:square-plus'}
-          style={{ fontSize: '28px', color: '#6366F1' }}
-        />
-      </div>
+      {isLoading ? (
+        <div style={{
+          width: '60px',
+          height: '60px',
+          borderRadius: '14px',
+          ...skeletonStyle,
+          border: '1px solid rgba(255,255,255,0.06)',
+          marginBottom: '14px'
+        }} />
+      ) : (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '60px',
+          height: '60px',
+          borderRadius: '14px',
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15))',
+          boxShadow: '0 8px 32px rgba(99, 102, 241, 0.15)',
+          marginBottom: '14px'
+        }}>
+          <Icon icon="lucide:square-plus" style={{ fontSize: '28px', color: '#6366F1' }} />
+        </div>
+      )}
 
       {/* Text */}
       <div style={{
@@ -59,7 +76,11 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea, loading 
           color: '#FFFFFF',
           letterSpacing: '-0.01em'
         }}>
-          {isLoading ? 'Creating Component...' : 'Empty Grid Area'}
+          {isLoading ? (
+            'Creating...'
+          ) : (
+            'Empty Grid Area'
+          )}
         </div>
         <div style={{
           fontSize: '12px',
@@ -80,9 +101,24 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea, loading 
           color: '#888',
           marginTop: '10px'
         }}>
-          {isLoading
-            ? `Tool #${loading?.toolCallNumber} • ${loading?.type} • ${loading?.id}`
-            : 'Ask the AI to add a component here'}
+          {isLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+              <div style={{
+                width: '220px',
+                height: '10px',
+                borderRadius: '8px',
+                ...skeletonStyle
+              }} />
+              <div style={{
+                width: '180px',
+                height: '10px',
+                borderRadius: '8px',
+                ...skeletonStyle
+              }} />
+            </div>
+          ) : (
+            'Ask the AI to add a component here'
+          )}
         </div>
       </div>
 
@@ -105,6 +141,7 @@ export const EmptyGridArea: React.FC<EmptyGridAreaProps> = ({ gridArea, loading 
         <Icon icon="lucide:grid-2x2" style={{ fontSize: '14px', color: '#6366F1' }} />
         {gridArea}
       </div>
-    </div>
+      </div>
+    </>
   );
 };

@@ -83,16 +83,7 @@ function InfoGraphContent() {
         padding: '24px',
         overflow: 'auto'
       }}>
-        <h1 style={{
-          fontSize: '32px',
-          fontWeight: 700,
-          color: '#FFFFFF',
-          marginBottom: '24px',
-          letterSpacing: '-0.02em'
-        }}>
-          Presentation Builder
-        </h1>
-        
+     
         {/* Presentation Display */}
         {!isAnyChatOpen && presentationState.slides.length === 0 ? (
           <div style={{
