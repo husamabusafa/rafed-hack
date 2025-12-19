@@ -326,3 +326,9 @@ export const GenerateChartTemplateUI = (props: ToolUIProps) => {
 export const GenerateTableTemplateUI = (props: ToolUIProps) => {
   return <ToolCallCard {...props} title="Generate Table Template" icon="lucide:table" summary="Creates a table JSON template" />;
 };
+
+export const UiToolUI = (props: ToolUIProps) => {
+  const input = asRecord(props.input);
+  const summary = getString(input, 'component') || getString(input, 'tool') || 'Render UI';
+  return <ToolCallCard {...props} title="UI" icon="lucide:layout-template" summary={summary} />;
+};

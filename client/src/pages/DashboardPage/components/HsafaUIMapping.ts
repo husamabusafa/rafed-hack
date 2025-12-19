@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { CreateComponentUI, FetchComponentDataUI, GenerateChartTemplateUI, GenerateTableTemplateUI, GetDashboardUI, GetGridInfoUI, QueryPostgresSchemaUI, RefreshAllComponentsUI, RemoveComponentUI, SetGraphQLEndpointUI, SetGridLayoutUI, SetPostgresSchemaUI, UpdateComponentUI } from './HsafaUI';
+import { CreateComponentUI, FetchComponentDataUI, GenerateChartTemplateUI, GenerateTableTemplateUI, GetDashboardUI, GetGridInfoUI, QueryPostgresSchemaUI, RefreshAllComponentsUI, RemoveComponentUI, SetGraphQLEndpointUI, SetGridLayoutUI, SetPostgresSchemaUI, UpdateComponentUI, UiToolUI } from './HsafaUI';
 import type { ToolUIProps } from './HsafaUITypes';
 
 export const HsafaUI: Record<string, (props: ToolUIProps) => ReactNode> = {
+  ui: UiToolUI,
   set_grid_layout: SetGridLayoutUI,
   create_component: CreateComponentUI,
   update_component: UpdateComponentUI,

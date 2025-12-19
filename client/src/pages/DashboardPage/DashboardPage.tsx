@@ -1,15 +1,21 @@
-import { HsafaChat, ContentContainer } from '@hsafa/ui-sdk';
-import { HsafaProvider } from '@hsafa/ui-sdk';
-import { useHsafa } from '@hsafa/ui-sdk';
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import {
+  ContentContainer,
+  createHsafaArtifactStore,
+  HsafaChat,
+  HsafaProvider,
+  useChatArtifact,
+  useChatArtifactVersioning,
+  useHsafaActiveChatId,
+  useHsafaTools,
+} from '@hsafa/ui-sdk';
 import { Icon } from '@iconify/react';
 import { createDashboardTools } from './components/DashboardBuilderTools';
-import type { DashboardState } from './types/types';
+import type { ComponentUnderLoading, DashboardComponent, DashboardState } from './types/types';
 import { ComponentRenderer } from './components/ComponentRenderer';
 import { EmptyGridArea } from './components/EmptyGridArea';
-import { saveDashboardVersion, loadLatestDashboard } from './utils/opfs';
 import { HsafaUI } from './components/HsafaUIMapping';
+
+type SetState<T> = (updater: T | ((prev: T) => T)) => void;
 
 const EMPTY_DASHBOARD: DashboardState = {
   grid: {
@@ -27,7 +33,32 @@ const EMPTY_DASHBOARD: DashboardState = {
   }
 };
 
-let latestDashboardState: DashboardState = EMPTY_DASHBOARD;
+const dashboardStore = createHsafaArtifactStore<DashboardState>({
+  namespace: 'dashboards',
+  legacyDecode: (raw: string) => {
+    try {
+      const parsed = JSON.parse(raw) as {
+        chatId?: unknown;
+        messageId?: unknown;
+        updatedAt?: unknown;
+        dashboard?: unknown;
+      };
+
+      if (typeof parsed.chatId !== 'string' || parsed.chatId.length === 0) return null;
+      if (typeof parsed.messageId !== 'string' || parsed.messageId.length === 0) return null;
+      if (!parsed.dashboard) return null;
+
+      return {
+        chatId: parsed.chatId,
+        versionId: parsed.messageId,
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : undefined,
+        value: parsed.dashboard as DashboardState,
+      };
+    } catch {
+      return null;
+    }
+  },
+});
 
 const AGENT_ID = import.meta.env.VITE_AGENT_ID_DASHBOARD || 'cmiqj4p0w0004qgg4g71gza8w';
 const AGENT_BASE_URL = import.meta.env.VITE_HSAFA_BASE_URL || 'http://localhost:3900';
@@ -43,142 +74,56 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const [dashboardState, setDashboardState] = useState<DashboardState>(EMPTY_DASHBOARD);
-  const { currentChatId } = useHsafa();
-    console.log('[Dashboard] currentChatId', currentChatId);
-  const readStoredChatId = useCallback(() => {
-    try { return localStorage.getItem(`hsafaChat_${AGENT_ID}.currentChatId`); } catch { return null; }
-  }, []);
-  const resolveActiveChatId = useCallback(() => (currentChatId || readStoredChatId() || undefined) as string | undefined, [currentChatId, readStoredChatId]);
-  const activeChatId = useMemo(() => resolveActiveChatId(), [resolveActiveChatId]);
+  const activeChat = useHsafaActiveChatId({ agentId: AGENT_ID });
+  const activeChatId = activeChat.chatId;
 
-  useEffect(() => {
-    latestDashboardState = dashboardState;
-  }, [dashboardState]);
+  const { value: dashboardState, setValue: setDashboardState } = useChatArtifact<DashboardState>({
+    agentId: AGENT_ID,
+    chatId: activeChatId,
+    initial: EMPTY_DASHBOARD,
+    store: dashboardStore,
+    saveDebounceMs: 800,
+  });
 
-  const setDashboardStateWithRef: Dispatch<SetStateAction<DashboardState>> = useCallback(
-    (updater) => {
-      setDashboardState((prev) => {
-        const next = typeof updater === 'function' ? (updater as (p: DashboardState) => DashboardState)(prev) : updater;
-        latestDashboardState = next;
-        return next;
-      });
-    },
-    [setDashboardState]
-  );
+  const versioning = useChatArtifactVersioning<DashboardState>({
+    chatId: activeChatId,
+    store: dashboardStore,
+    value: dashboardState,
+    setValue: setDashboardState,
+    initial: EMPTY_DASHBOARD,
+  });
 
-  // Track messages to detect edits
-  // const prevMessagesRef = useRef<any[]>([]);
-  // const lastChatIdRef = useRef<string | undefined>(undefined);
-  // const handleMessagesChange = useCallback(async (messages: any[], chatId?: string) => {
-  //   console.log('[Dashboard] Messages changed', messages, 'chatId:', chatId);
-  //   if (!chatId) {
-  //     console.warn('[Dashboard] No chatId provided to onMessagesChange, skipping version check');
-  //     return;
-  //   }
-  //   lastChatIdRef.current = chatId;
+  const dashboardTools = useHsafaTools({
+    state: dashboardState,
+    setState: setDashboardState,
+    tools: ({
+      get,
+      set,
+    }: {
+      get: () => DashboardState;
+      set: SetState<DashboardState>;
+    }) => createDashboardTools(get, set),
+  });
 
-  //   // Detect if messages were truncated (edit scenario)
-  //   const prevLength = prevMessagesRef.current.length;
-  //   const newLength = messages.length;
-  //   const wasTruncated = newLength < prevLength;
-  //   console.log('[Dashboard] Edit detection', { prevLength, newLength, wasTruncated, chatId });
+  const rawAreas: string[] = dashboardState.grid.templateAreas
+    .join(' ')
+    .split(/\s+/)
+    .filter((area) => area.length > 0 && area !== '.');
 
-  //   // Always try to restore to the nearest assistant message that has a saved version
-  //   const reversed = [...messages].reverse();
-  //   const assistantMsgs = reversed.filter((m: any) => m?.role === 'assistant' && !!m?.id);
-  //   console.log('[Dashboard] Assistant messages (newest->oldest):', assistantMsgs.map((m: any, i: number) => ({ i, id: m.id })));
-  //   let restored = false;
-  //   for (const am of assistantMsgs) {
-  //     try {
-  //       console.log('[Dashboard] Checking hasVersion for', { chatId, messageId: am.id });
-  //       const exists = await hasVersion(String(chatId), String(am.id));
-  //       console.log('[Dashboard] hasVersion result', { chatId, messageId: am.id, exists });
-  //       if (exists) {
-  //         console.log('[Dashboard] Loading dashboard version', { chatId, messageId: am.id });
-  //         const version = await loadDashboardVersion(String(chatId), String(am.id));
-  //         console.log('[Dashboard] Loaded version', { chatId, messageId: am.id, versionSummary: version ? { areas: (version.grid?.templateAreas || []).length, components: Object.keys(version.components || {}).length } : null });
-  //         if (version) {
-  //           setDashboardState(version);
-  //           restored = true;
-  //           break;
-  //         }
-  //       }
-  //     } catch (e) {
-  //       console.error('[Dashboard] Version restore error', e);
-  //     }
-  //   }
+  const gridAreas: string[] = Array.from(new Set<string>(rawAreas));
 
-  //   if (!restored && wasTruncated) {
-  //     // No assistant messages left after truncation: reset to empty
-  //     setDashboardState(EMPTY_DASHBOARD);
-  //     console.log('[Dashboard] No version found and conversation truncated. Reset to EMPTY_DASHBOARD');
-  //   }
-
-  //   prevMessagesRef.current = messages;
-  //   console.log('[Dashboard] Updated prevMessagesRef length ->', prevMessagesRef.current.length);
-  // }, []);
-
-  useEffect(() => {
-    const id = resolveActiveChatId();
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        console.log('[Dashboard] Loading latest dashboard for chat', id);
-        const latest = await loadLatestDashboard(String(id));
-        if (cancelled) return;
-        setDashboardStateWithRef(latest || EMPTY_DASHBOARD);
-        console.log('[Dashboard] Loaded latest dashboard result', { chatId: id, hasLatest: !!latest, areas: latest ? (latest.grid?.templateAreas || []).length : 0, components: latest ? Object.keys(latest.components || {}).length : 0 });
-      } catch (e) {
-        console.error('[Dashboard] LoadLatest error', e);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [resolveActiveChatId, setDashboardStateWithRef]);
-
-  const dashboardTools = useMemo(
-    () => createDashboardTools(() => latestDashboardState, setDashboardStateWithRef),
-    [setDashboardStateWithRef]
-  );
-
-  const gridAreas = useMemo(() => {
-    const areas = dashboardState.grid.templateAreas
-      .join(' ')
-      .split(/\s+/)
-      .filter(area => area && area !== '.');
-    return [...new Set(areas)];
-  }, [dashboardState.grid.templateAreas]);
-
-  const gridAreasWithComponents = useMemo(() => {
-    return gridAreas.map(area => ({
-      area,
-      component: Object.values(dashboardState.components).find(c => c.gridArea === area),
-      loading: (dashboardState.componentsUnderLoading || []).slice().reverse().find(l => l.gridArea === area)
-    }));
-  }, [gridAreas, dashboardState.components, dashboardState.componentsUnderLoading]);
-
-  // Debounced autosave of the latest dashboard for the active chat
-  const autosaveTimerRef = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    const id = resolveActiveChatId();
-    if (!id) return;
-    if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
-    console.log('[Dashboard] Autosave scheduled for chat', id);
-    autosaveTimerRef.current = window.setTimeout(async () => {
-      try {
-        const summary = { areas: (latestDashboardState.grid?.templateAreas || []).length, components: Object.keys(latestDashboardState.components || {}).length };
-        console.log('[Dashboard] Autosave firing', { chatId: id, messageId: '__latest', summary });
-        await saveDashboardVersion(String(id), '__latest', latestDashboardState);
-        console.log('[Dashboard] Autosave done', { chatId: id });
-      } catch (e) {
-        console.error('[Dashboard] AutoSave error', e);
-      }
-    }, 800);
-    return () => {
-      if (autosaveTimerRef.current) { window.clearTimeout(autosaveTimerRef.current); }
-    };
-  }, [dashboardState, currentChatId, resolveActiveChatId]);
+  const gridAreasWithComponents: Array<{
+    area: string;
+    component?: DashboardComponent;
+    loading?: ComponentUnderLoading;
+  }> = gridAreas.map((area) => ({
+    area,
+    component: (Object.values(dashboardState.components) as DashboardComponent[]).find((c) => c.gridArea === area),
+    loading: ((dashboardState.componentsUnderLoading || []) as ComponentUnderLoading[])
+      .slice()
+      .reverse()
+      .find((l) => l.gridArea === area),
+  }));
 
   return (
     <>
@@ -329,6 +274,12 @@ function DashboardContent() {
         expandable={false}
         HsafaTools={dashboardTools}
         HsafaUI={HsafaUI}
+        onMessagesChange={(messages: unknown[], chatId?: string) => {
+          void versioning.onMessagesChange(messages, chatId);
+        }}
+        onFinish={(payload: unknown) => {
+          void versioning.onFinish(payload);
+        }}
         presetPrompts={[
     {
       label: "👥 Student Analytics",
@@ -351,32 +302,6 @@ function DashboardContent() {
       prompt: "Show me: 1) Total students count, 2) Total schools count, 3) Total routes count - all as KPI cards in a simple layout"
     }
   ]}
-        // onMessagesChange={handleMessagesChange}
-        // onFinish={async (payload: { chatId?: string; message?: { id?: string; role?: string }; messages?: Array<{ id?: string; role?: string }> }) => {
-        //   try {
-        //     console.log('[Dashboard] onFinish called with payload:', payload);
-        //     const anyPayload = payload as unknown as { assistantMessageId?: string; messages?: Array<{ id?: string; role?: string }>; message?: { id?: string; role?: string } };
-        //     const providerId = resolveActiveChatId();
-        //     const fromMessages = lastChatIdRef.current;
-        //     const resolvedChatId = String(fromMessages || providerId || payload?.chatId || '');
-        //     console.log('[Dashboard] onFinish resolve chat ids', { fromMessages, providerId, payloadChatId: payload?.chatId, resolvedChatId });
-        //     let messageId: string | undefined = anyPayload?.assistantMessageId || anyPayload?.message?.id;
-        //     if (!messageId && Array.isArray(payload?.messages)) {
-        //       const reversed = [...payload.messages].reverse();
-        //       const lastAssistant = reversed.find((m) => m?.role === 'assistant' && !!m?.id);
-        //       if (lastAssistant?.id) messageId = lastAssistant.id;
-        //     }
-        //     console.log('[Dashboard] onFinish saving version:', { chatId: resolvedChatId, messageId });
-        //     if (!resolvedChatId || !messageId) {
-        //       console.warn('[Dashboard] onFinish skipped - missing chatId or messageId');
-        //       return;
-        //     }
-        //     await saveDashboardVersion(String(resolvedChatId), String(messageId), dashboardStateRef.current);
-        //     console.log('[Dashboard] onFinish saved version OK', { chatId: resolvedChatId, messageId });
-        //   } catch (e) {
-        //     console.error('[Dashboard] SaveVersion error', e);
-        //   }
-        // }}
       />
     </>
   );
