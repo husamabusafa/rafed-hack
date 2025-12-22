@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react';
+type SetState<T> = (updater: T | ((prev: T) => T)) => void;
 
 export interface Slide {
   image: string;
@@ -29,7 +29,7 @@ const EMPTY_PRESENTATION: PresentationState = {
 
 export const createPresentationTools = (
   getPresentationState: () => PresentationState,
-  setPresentationState: Dispatch<SetStateAction<PresentationState>>
+  setPresentationState: SetState<PresentationState>
 ) => {
   return {
     /**
@@ -62,11 +62,9 @@ export const createPresentationTools = (
      *   "required": ["slides"]
      * }
      */
-    set_presentation_slides: {
-      tool: async (params: {
-        slides: Slide[];
-      }): Promise<ToolResponse> => {
+    set_presentation_slides: async (input: unknown): Promise<ToolResponse> => {
       try {
+        const params = input as { slides?: Slide[] };
         if (!Array.isArray(params.slides)) {
           return {
             success: false,
@@ -119,7 +117,6 @@ export const createPresentationTools = (
           error: error instanceof Error ? error.message : 'Failed to set presentation slides',
         };
       }
-      }
     },
 
     /**
@@ -132,9 +129,9 @@ export const createPresentationTools = (
      *   "properties": {}
      * }
      */
-    get_presentation_slides: {
-      tool: async (): Promise<ToolResponse> => {
+    get_presentation_slides: async (input: unknown): Promise<ToolResponse> => {
         try {
+          void input;
           const currentState = getPresentationState();
 
           return {
@@ -152,7 +149,6 @@ export const createPresentationTools = (
             error: error instanceof Error ? error.message : 'Failed to get presentation slides',
           };
         }
-      }
     },
   };
 };

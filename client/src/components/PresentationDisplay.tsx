@@ -3,9 +3,10 @@ import type { Slide } from '../tools/presentationTools';
 
 interface PresentationDisplayProps {
   slides: Slide[];
+  mode?: 'presentation' | 'infographic';
 }
 
-export function PresentationDisplay({ slides }: PresentationDisplayProps) {
+export function PresentationDisplay({ slides, mode = 'presentation' }: PresentationDisplayProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -53,6 +54,16 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
   }, [isFullscreen, goToPrevSlide, goToNextSlide]);
 
   if (slides.length === 0) {
+    const title = mode === 'infographic' ? 'No Infographic Yet' : 'No Presentation Yet';
+    const description = mode === 'infographic'
+      ? 'Ask the AI agent to build an infographic as a set of slides with images and titles.\n            The results will be generated and displayed here.'
+      : 'Ask the AI agent to create presentation slides with images and titles.\n            The agent will generate and display them here.';
+    const prompt1 = mode === 'infographic'
+      ? '"Create an infographic about our data"'
+      : '"Create a presentation about our data"';
+    const prompt2 = mode === 'infographic'
+      ? '"Generate infographic slides with charts"'
+      : '"Generate presentation slides with charts"';
     return (
       <div
         style={{
@@ -108,7 +119,7 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
               letterSpacing: '-0.02em',
             }}
           >
-            No Presentation Yet
+            {title}
           </h3>
           <p
             style={{
@@ -118,8 +129,7 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
               lineHeight: '1.7',
             }}
           >
-            Ask the AI agent to create presentation slides with images and titles.
-            The agent will generate and display them here.
+            {description}
           </p>
           <div
             style={{
@@ -174,7 +184,7 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
                 >
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
-                <span>"Create a presentation about our data"</span>
+                <span>{prompt1}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                 <svg
@@ -191,7 +201,7 @@ export function PresentationDisplay({ slides }: PresentationDisplayProps) {
                 >
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
-                <span>"Generate presentation slides with charts"</span>
+                <span>{prompt2}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <svg
