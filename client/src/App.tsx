@@ -5,11 +5,11 @@ import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import InfoGraph from './pages/InfoGraph'
 import DashboardPage from './pages/DashboardPage'
-import DeckGLMap from './pages/DeckGLMap'
 import AnalysePage from './pages/AnalysePage'
 import FloatingNav from './components/FloatingNav'
 import PresentaionBuilder from './pages/PresentaionBuilder'
 import TestPage from './pages/DeckGLMap/TestPage'
+import MapAgentPage from './pages/DeckGLMap/MapAgentPage'
 
 function App() {
   return (
@@ -21,11 +21,12 @@ function App() {
               <Route path="/infograph" element={<InfoGraph />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/presentation-builder" element={<PresentaionBuilder />} />
-              <Route path="/deckgl-map" element={<DeckGLMap />} />
+              <Route path="/deckgl-map" element={<MapAgentPage />} />
               <Route path="/analyse" element={<AnalysePage />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/test-page" element={<TestPage />} />
+              <Route path="/deckgl-map-agent" element={<MapAgentPage />} />
             </Routes>
           </ContentContainer>
           <FloatingNav />
