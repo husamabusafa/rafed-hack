@@ -73,7 +73,8 @@ const validateLayerClickhouse = async (layer: Record<string, unknown>): Promise<
     return { id, ok: false, rowCount: 0, error: 'Missing ClickHouse query' };
   }
 
-  const timeoutMs = toMsTimeout(typeof dataSource.timeout === 'number' ? dataSource.timeout : undefined);
+  const timeoutValue = dataSource && typeof dataSource.timeout === 'number' ? dataSource.timeout : undefined;
+  const timeoutMs = toMsTimeout(timeoutValue);
   const wrapped = `SELECT * FROM (${stripTrailingSemicolon(query)}) LIMIT 5`;
   const result = await queryClickHouse(wrapped, { timeout: timeoutMs });
 
@@ -240,10 +241,11 @@ export const createDeckGLMapTools = (getMapConfig: () => MapConfig, setMapConfig
         const warnings: string[] = [];
         const validations: LayerValidation[] = [];
 
-        config.layers.forEach((layer: any) => {
-          const layerId = typeof layer?.id === 'string' ? layer.id : 'unknown';
-          const style = layer?.style;
-          if (style && typeof style === 'object') {
+        config.layers.forEach((layerUnknown: unknown) => {
+          const layer = isRecord(layerUnknown) ? layerUnknown : undefined;
+          const layerId = layer && typeof layer.id === 'string' ? layer.id : 'unknown';
+          const style = layer && isRecord(layer.style) ? layer.style : undefined;
+          if (style) {
             if ('getFillColor' in style && !('color' in style)) {
               warnings.push(
                 `Layer "${layerId}": style.getFillColor is not used by this renderer. Use style.color instead (RGBA array).`
@@ -261,8 +263,8 @@ export const createDeckGLMapTools = (getMapConfig: () => MapConfig, setMapConfig
             }
           }
 
-          const ds = layer?.dataSource;
-          if (ds && typeof ds === 'object' && typeof ds.timeout === 'number' && ds.timeout > 0 && ds.timeout < 1000) {
+          const ds = layer && isRecord(layer.dataSource) ? layer.dataSource : undefined;
+          if (ds && typeof ds.timeout === 'number' && ds.timeout > 0 && ds.timeout < 1000) {
             warnings.push(
               `Layer "${layerId}": dataSource.timeout looks like seconds (${ds.timeout}). This code expects milliseconds. Use e.g. 60000 for 60s.`
             );
@@ -270,10 +272,11 @@ export const createDeckGLMapTools = (getMapConfig: () => MapConfig, setMapConfig
         });
 
         if (validate) {
-          for (const layer of config.layers as any[]) {
-            const dataSource = layer?.dataSource;
-            if (dataSource?.type === 'clickhouse') {
-              const v = await validateLayerClickhouse(layer as Record<string, unknown>);
+          for (const layerUnknown of config.layers as unknown[]) {
+            const layer = isRecord(layerUnknown) ? layerUnknown : undefined;
+            const dataSource = layer && isRecord(layer.dataSource) ? layer.dataSource : undefined;
+            if (layer && dataSource && dataSource.type === 'clickhouse') {
+              const v = await validateLayerClickhouse(layer);
               validations.push(v);
             }
           }
